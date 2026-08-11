@@ -1,0 +1,20 @@
+Level1 Fixed Color Fill =
+SWITCH (
+    MAX ( 'MappedParameter'[Category] ),
+    "PLACEHOLDER_VALUE_1", "#01B8AA",
+    "PLACEHOLDER_VALUE_2", "#FD625E",
+    "PLACEHOLDER_VALUE_3", "#F2C80F",
+    BLANK ()
+)
+// Same pattern as circle packing's levelfixedcolorfill.dax -- see that
+// file for the full writeup on MAX vs SELECTEDVALUE, composite-key
+// constraint, and per-level measure naming.
+//
+// One of THREE near-identical measures this visual needs -- copy this
+// same SWITCH shape for Level 2 and Level 3, swapping the field parameter
+// reference and giving each its OWN unique measure name:
+//   Level2 Fixed Color Fill = SWITCH ( MAX ( 'MappedParameterTwo'[Category2] ), ... )
+//   Level3 Fixed Color Fill = SWITCH ( MAX ( 'MappedParameterThree'[Category3] ), ... )
+//
+// Bind to Level1ColorOverrideFill. Falls back to level1DefaultFillColor
+// when unbound or BLANK().

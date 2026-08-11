@@ -1,0 +1,12 @@
+MappedParameterThree = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// Shared with circle packing -- same field parameter table, same 4
+// candidate columns, same 3-way exclusion cascade in the spec's
+// field-mapping adapter. See circlepacking/categorythreefieldparameter.dax
+// for the full writeup on Level1/Level2 reuse (MappedParameter/
+// MappedParameterTwo), shared-slicer coupling, and the composite-key
+// constraint.

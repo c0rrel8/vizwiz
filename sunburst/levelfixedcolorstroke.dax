@@ -1,0 +1,14 @@
+Level1 Fixed Color Stroke =
+SWITCH (
+    MAX ( 'MappedParameter'[Category] ),
+    "PLACEHOLDER_VALUE_1", "#FCFCFD",
+    BLANK ()
+)
+// Same pattern as circle packing's levelfixedcolorstroke.dax -- see that
+// file for the full writeup. Copy per level with unique measure names:
+//   Level2 Fixed Color Stroke = SWITCH ( MAX ( 'MappedParameterTwo'[Category2] ), ... )
+//   Level3 Fixed Color Stroke = SWITCH ( MAX ( 'MappedParameterThree'[Category3] ), ... )
+//
+// Bind to Level1ColorOverrideBorder. Falls back to level1DefaultStrokeColor
+// (default: #182231, matching the background). Most categories won't need
+// this -- use only to flag specific categories with a distinct stroke.
