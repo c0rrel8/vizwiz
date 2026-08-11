@@ -1,0 +1,34 @@
+MappedParameter = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// Lets a report viewer swap which column drives the aster plot's Category
+// role via a slicer, without touching the spec.
+//
+// CONFIRMED IN POWER BI DESKTOP: a field parameter's label/value column
+// CANNOT be overridden per-visual the way an ordinary column or measure can
+// via "Rename for this visual". The table is called "MappedParameter", and
+// its own label column (Fields pane: MappedParameter table -> Category /
+// MappedParameter Fields / MappedParameter Order) happens to be named
+// "Category" -- but that is NOT the field name Deneb actually receives
+// data under. Confirmed live (Deneb's "view as table" and a plain Power BI
+// table visual both showed the same thing): when Power BI resolves a
+// field-parameter-driven role, the data is keyed by the REAL underlying
+// column's own name -- whichever of EngagementCodeList/AlphaCode/
+// CustodianDisplayName/EFileName is currently selected -- not by this
+// table's label column at all. The spec's field-mapping adapter
+// (visuals/aster-plot/spec/aster-plot.vl.json, first transform step)
+// handles this by checking each of the 4 candidates in order via
+// isValid() and using whichever one actually has data -- keep that in
+// sync with the candidate list here. See the README's "Field mapping"
+// section for the full writeup and what to touch for a second,
+// independent visual's own field parameter.
+//
+// If you ever reference this table's columns (Category / MappedParameter
+// Fields / MappedParameter Order) in a measure, use MAX, not SELECTEDVALUE
+// or ALLSELECTED -- Power BI links them into a composite key ("Group By
+// Columns"), and touching any single one via a filter-context function
+// throws "part of composite key" (confirmed live). See
+// dax/measure-a-color-gradient.dax for the full writeup.

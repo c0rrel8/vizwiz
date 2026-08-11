@@ -1,0 +1,79 @@
+{
+  "autosize": {
+    "contains": "padding",
+    "type": "fit"
+  },
+  "view": {
+    "stroke": "transparent"
+  },
+  "font": "Segoe UI, wf_segoe-ui_normal, helvetica, arial, sans-serif",
+  "arc": {},
+  "area": {
+    "line": true,
+    "opacity": 0.6
+  },
+  "bar": {},
+  "line": {
+    "strokeWidth": 3,
+    "strokeCap": "round",
+    "strokeJoin": "round"
+  },
+  "point": {
+    "filled": true,
+    "size": 75
+  },
+  "rect": {},
+  "text": {
+    "font": "Segoe UI, wf_segoe-ui_normal, helvetica, arial, sans-serif",
+    "fontSize": 12,
+    "fill": "#252423"
+  },
+  "axis": {
+    "ticks": false,
+    "grid": false,
+    "domain": false,
+    "labelColor": "#252423",
+    "labelFontSize": 12,
+    "titleFont": "din, wf_standard-font, helvetica, arial, sans-serif",
+    "titleColor": "#252423",
+    "titleFontSize": 16,
+    "titleFontWeight": "normal"
+  },
+  "axisQuantitative": {
+    "tickCount": 3,
+    "grid": true,
+    "gridColor": "#E1DFDD",
+    "gridDash": [1, 5],
+    "labelFlush": false
+  },
+  "axisX": {
+    "labelPadding": 5
+  },
+  "axisY": {
+    "labelPadding": 10
+  },
+  "header": {
+    "titleFont": "din, wf_standard-font, helvetica, arial, sans-serif",
+    "titleFontSize": 16,
+    "titleColor": "#252423",
+    "labelFont": "Segoe UI, wf_segoe-ui_normal, helvetica, arial, sans-serif",
+    "labelFontSize": 13.333333333333332,
+    "labelColor": "#252423"
+  },
+  "legend": {
+    "titleFont": "Segoe UI, wf_segoe-ui_normal, helvetica, arial, sans-serif",
+    "titleFontWeight": "bold",
+    "titleColor": "#252423",
+    "labelFont": "Segoe UI, wf_segoe-ui_normal, helvetica, arial, sans-serif",
+    "labelFontSize": 13.333333333333332,
+    "labelColor": "#252423",
+    "symbolType": "circle",
+    "symbolSize": 75
+  },
+  "path": {},
+  "shape": {},
+  "symbol": {
+    "strokeWidth": 1.5,
+    "size": 50
+  }
+}

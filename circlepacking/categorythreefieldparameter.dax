@@ -1,0 +1,57 @@
+MappedParameterThree = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// CONFIRMED bindings for this visual's 3 hierarchy levels (per the report
+// author, not yet independently re-verified live against this repo's own
+// tooling -- see the README's "Known limitations"):
+//   Level1 -> 'MappedParameter'[Category]        (aster plot's own field
+//                                                  parameter, reused)
+//   Level2 -> 'MappedParameterTwo'[Category2]     (waffle chart's own
+//                                                  field parameter, reused)
+//   Level3 -> 'MappedParameterThree'[Category3]   (new -- this table)
+//
+// A THIRD, independent field parameter over the exact same 4 candidate
+// columns as visuals/aster-plot/dax/category-field-parameter.dax
+// (MappedParameter) and visuals/waffle-chart/dax/category-two-field-parameter.dax
+// (MappedParameterTwo) -- lets a report viewer swap which column drives
+// this visual's Level3 role via its own slicer, independently of whatever
+// MappedParameter/MappedParameterTwo are currently sliced to.
+//
+// Level1 and Level2 are NOT new field parameters -- they reuse the aster
+// plot's and waffle chart's existing ones directly. This means slicing
+// MappedParameter in the report moves the aster plot's Category AND this
+// visual's Level1 together (shared state, not a coincidence -- same table
+// referenced by both specs), and likewise MappedParameterTwo moves the
+// waffle chart's Category and this visual's Level2 together. Worth being
+// deliberate about whether that shared-slicer coupling is wanted before
+// wiring this up in the report -- if Level1/Level2 need to move
+// independently of the aster plot/waffle chart, they'd need their own
+// separate field parameters instead of reusing these two.
+//
+// Since all 3 field parameters share the exact same 4 candidate names,
+// and a field parameter's resolved key can't be renamed per-visual (same
+// finding as MappedParameter/MappedParameterTwo -- see
+// category-field-parameter.dax and category-two-field-parameter.dax), a
+// naive isValid() cascade checking the same 4 candidates in the same
+// order for all 3 roles cannot tell them apart. The spec's field-mapping
+// adapter (visuals/circle-packing/spec/circle-packing.vg.json) fixes this
+// with a 3-way exclusion cascade -- Level1 resolves first (highest-priority
+// candidate present, same as always), Level2 resolves to the
+// highest-priority *remaining* candidate Level1 didn't already claim, and
+// Level3 to the highest-priority candidate neither Level1 nor Level2
+// claimed. See the README's "Field mapping" section for the full
+// mechanism, including the 'All' fallback when a level's own field
+// parameter isn't distinctly sliced.
+//
+// If you ever reference this table's own columns in a measure, use MAX,
+// not SELECTEDVALUE or ALLSELECTED -- same composite-key constraint as
+// MappedParameter/MappedParameterTwo, see
+// visuals/aster-plot/dax/measure-a-color-gradient.dax for the full
+// writeup. This table's own label column is stated as "Category3" (per
+// the report author) -- reference it as 'MappedParameterThree'[Category3].
+// Not yet independently confirmed the way "Category2" was for
+// MappedParameterTwo (that one was verified live via the Fields pane) --
+// worth a quick check before relying on the exact column name.

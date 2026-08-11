@@ -1,0 +1,10 @@
+[
+  { "MappedParameter": "D1 Loans",               "MeasureA": 2.460172, "MeasureB": 5535, "ColorOverride": "#4555D6" },
+  { "MappedParameter": "Custodian Not Provided",  "MeasureA": 1.4994,   "MeasureB": 3218, "ColorOverride": "#39489F" },
+  { "MappedParameter": "Brown, Ron",             "MeasureA": 1.196917, "MeasureB": 6664, "ColorOverride": "#35448D" },
+  { "MappedParameter": "Hanagan, Pat",           "MeasureA": 1.130349, "MeasureB": 7939, "ColorOverride": "#344389" },
+  { "MappedParameter": "Morrice, Brad",          "MeasureA": 0.29735,  "MeasureB": 1102, "ColorOverride": "#2A3859" },
+  { "MappedParameter": "Multiple Custodians",    "MeasureA": 0.29425,  "MeasureB": 10,   "ColorOverride": "#2A3859" },
+  { "MappedParameter": "Bashore, Kathy",         "MeasureA": 0.09096,  "MeasureB": 460,  "ColorOverride": "#27354E" },
+  { "MappedParameter": "Goldman Sachs",          "MeasureA": 0.011158, "MeasureB": 1,    "ColorOverride": "#263449" }
+]

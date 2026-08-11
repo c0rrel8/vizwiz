@@ -1,0 +1,19 @@
+Border Fixed Color =
+SWITCH (
+    MAX ( 'MappedParameterTwo'[Category2] ),
+    "EngagementCodeList", "#01B8AA",
+    "AlphaCode", "#FD625E",
+    BLANK () // falls back to elementBorderColor in the spec -- see below
+)
+// Optional: bind this to the ColorOverrideBorder field (rename for this
+// visual -- the spec maps it to the internal BorderColorOverride role).
+// Same SWITCH shape as category-fixed-color.dax (including the same MAX-
+// not-SELECTEDVALUE composite-key constraint -- see that file's
+// comments), but for the element's
+// border/stroke instead of its fill -- most of the time you won't need
+// this at all, since the spec's elementBorderColor param (defaults to the
+// shared background color, #182231, per docs/design-system.md) already
+// gives every element a clean, uniform border. Use this measure only if
+// specific categories need to stand out with a distinct border color
+// (e.g. flagging an outlier), leaving BLANK() for everything else so it
+// falls back to elementBorderColor via the spec's isValid() check.

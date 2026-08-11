@@ -1,0 +1,488 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Aster Plot: wedge angle encodes MeasureA's share of the whole, wedge radius encodes MeasureB. Click a wedge to show its detail in the center label. Migrated from a D3 v3 d3.layout.pie() + d3.svg.arc() implementation. The first 4 transform steps are the field-mapping adapter -- see the README's 'Field mapping' section before touching any field name in this spec.",
+  "data": { "name": "dataset" },
+  "width": "container",
+  "height": "container",
+  "autosize": { "type": "fit", "contains": "padding" },
+  "background": "#182231",
+  "padding": 5,
+
+  "params": [
+    { "name": "innerRadiusRatio", "value": 0.35 },
+    { "name": "outerRadius", "expr": "min(width, height) / 2" },
+    { "name": "innerRadius", "expr": "outerRadius * innerRadiusRatio" },
+
+    { "name": "borderColor", "value": "#182231" },
+    { "name": "borderWidth", "value": 1.5 },
+
+    { "name": "measureFormat", "value": "~s" },
+    { "name": "percentFormat", "value": ".0%" },
+
+    { "name": "showLabelCategory", "value": true },
+    { "name": "showLabelMeasureA", "value": false },
+    { "name": "showLabelMeasureB", "value": false },
+    { "name": "showLabelPercent", "value": true },
+    { "name": "labelFontFamily", "value": "Segoe UI" },
+    { "name": "labelFontSize", "value": 12 },
+    { "name": "labelFontSizePx", "expr": "labelFontSize * 4 / 3" },
+    { "name": "labelLineHeight", "expr": "labelFontSizePx * 1.3" },
+    { "name": "labelPosition", "value": "outside" },
+    { "name": "labelOutsideOffset", "value": 14 },
+    { "name": "labelInsideRatio", "value": 0.5 },
+    { "name": "labelColorOutside", "value": "#FCFCFD" },
+    { "name": "labelColorInside", "value": "#ffffff" },
+    { "name": "labelSubtitleColor", "value": "#A5B4CB" },
+    { "name": "labelWrapWidth", "value": 12 },
+    { "name": "labelMinAngleDegrees", "value": 8 },
+    { "name": "labelAutoSize", "value": false },
+    { "name": "labelFontSizeMin", "value": 7 },
+    { "name": "labelFontSizeMax", "value": 13 },
+    { "name": "labelAutoSizeAngleCap", "value": 40 },
+
+    { "name": "showLegend", "value": true },
+    { "name": "legendOrient", "value": "right" },
+    { "name": "legendLabelColor", "value": "#A5B4CB" },
+    { "name": "legendTitleColor", "value": "#A5B4CB" },
+    {
+      "name": "legendOrientEff",
+      "expr": "showLegend ? legendOrient : 'none'"
+    },
+    { "name": "legendXEff", "expr": "showLegend ? null : 0" },
+    { "name": "legendYEff", "expr": "showLegend ? null : 0" },
+
+    { "name": "showLeaderLine", "value": true },
+    { "name": "leaderLineColor", "value": "#999999" },
+    { "name": "leaderLineWidth", "value": 1 },
+    { "name": "leaderLineGap", "value": 4 },
+
+    { "name": "centerTitleText", "value": "Overview" },
+    { "name": "centerFontFamily", "value": "Segoe UI" },
+    { "name": "centerFontSize", "value": 14 },
+    { "name": "centerFontSizePx", "expr": "centerFontSize * 4 / 3" },
+    { "name": "centerFontWeight", "value": "bold" },
+    { "name": "centerFontColor", "value": "#FCFCFD" },
+    { "name": "centerSubtitleColor", "value": "#A5B4CB" },
+    { "name": "centerSelectedColorFromWedge", "value": false },
+    { "name": "centerAutoSize", "value": false },
+    { "name": "centerWrapWidth", "value": 14 },
+    {
+      "name": "centerTitleWrapped",
+      "expr": "replace(replace(centerTitleText, regexp('(.{1,' + centerWrapWidth + '})(\\\\s+|$)', 'g'), '$1\\n'), regexp('\\\\n+$'), '')"
+    },
+    { "name": "centerTitleWrappedLineCount", "expr": "length(split(centerTitleWrapped, '\\n'))" },
+
+    { "name": "showCenterTitle", "value": true },
+    { "name": "showCenterCount", "value": true },
+    { "name": "showCenterMeasureAActual", "value": true },
+    { "name": "showCenterMeasureBActual", "value": false },
+    {
+      "name": "centerDefaultTitleLineCount",
+      "expr": "showCenterTitle ? centerTitleWrappedLineCount : 0"
+    },
+    {
+      "name": "centerDefaultLineCount",
+      "expr": "centerDefaultTitleLineCount + (showCenterCount ? 1 : 0) + (showCenterMeasureAActual ? 1 : 0) + (showCenterMeasureBActual ? 1 : 0)"
+    },
+    {
+      "name": "centerDefaultFontSize",
+      "expr": "centerAutoSize ? centerFontSizePx * min(1, 4 / max(1, centerDefaultLineCount)) : centerFontSizePx"
+    },
+    { "name": "centerDefaultLineHeightEff", "expr": "centerDefaultFontSize * 1.3" },
+    {
+      "name": "centerDefaultTitleDy",
+      "expr": "-(centerDefaultLineCount - 1) * centerDefaultLineHeightEff / 2"
+    },
+    {
+      "name": "centerDefaultSubtitleDy",
+      "expr": "centerDefaultTitleDy + centerDefaultTitleLineCount * centerDefaultLineHeightEff"
+    },
+
+    { "name": "showCenterSelCategory", "value": true },
+    { "name": "showCenterSelMeasureAActual", "value": true },
+    { "name": "showCenterSelMeasureAPercent", "value": true },
+    { "name": "showCenterSelMeasureBActual", "value": true },
+    { "name": "showCenterSelMeasureBPercent", "value": false },
+    {
+      "name": "centerSelectedTitleLineCount",
+      "expr": "showCenterSelCategory ? 1 : 0"
+    },
+    {
+      "name": "centerSelectedLineCount",
+      "expr": "centerSelectedTitleLineCount + ((showCenterSelMeasureAActual || showCenterSelMeasureAPercent) ? 1 : 0) + ((showCenterSelMeasureBActual || showCenterSelMeasureBPercent) ? 1 : 0)"
+    },
+    {
+      "name": "centerSelectedFontSize",
+      "expr": "centerAutoSize ? centerFontSizePx * min(1, 4 / max(1, centerSelectedLineCount)) : centerFontSizePx"
+    },
+    { "name": "centerSelectedLineHeightEff", "expr": "centerSelectedFontSize * 1.3" },
+    {
+      "name": "centerSelectedTitleDy",
+      "expr": "-(centerSelectedLineCount - 1) * centerSelectedLineHeightEff / 2"
+    },
+    {
+      "name": "centerSelectedSubtitleDy",
+      "expr": "centerSelectedTitleDy + centerSelectedTitleLineCount * centerSelectedLineHeightEff"
+    }
+  ],
+
+  "transform": [
+    {
+      "calculate": "isValid(datum.EngagementCodeList) ? datum.EngagementCodeList : isValid(datum.AlphaCode) ? datum.AlphaCode : isValid(datum.CustodianDisplayName) ? datum.CustodianDisplayName : isValid(datum.EFileName) ? datum.EFileName : '(Unspecified)'",
+      "as": "Category"
+    },
+    {
+      "calculate": "datum.MeasureA",
+      "as": "MeasureA"
+    },
+    {
+      "calculate": "datum.MeasureB",
+      "as": "MeasureB"
+    },
+    {
+      "calculate": "datum.ColorOverride",
+      "as": "ColorOverride"
+    },
+    {
+      "calculate": "datum.LabelColorOverride",
+      "as": "LabelColorOverride"
+    },
+    {
+      "joinaggregate": [
+        { "op": "sum", "field": "MeasureA", "as": "Total_A" },
+        { "op": "sum", "field": "MeasureB", "as": "Total_B" },
+        { "op": "max", "field": "MeasureB", "as": "Max_B" },
+        { "op": "distinct", "field": "Category", "as": "SliceCount" }
+      ]
+    },
+    {
+      "window": [{ "op": "sum", "field": "MeasureA", "as": "MeasureA_end" }],
+      "frame": [null, 0]
+    },
+    {
+      "window": [{ "op": "lag", "field": "MeasureA_end", "as": "MeasureA_start" }],
+      "frame": [null, 0]
+    },
+    {
+      "calculate": "isValid(datum.MeasureA_start) ? datum.MeasureA_start : 0",
+      "as": "MeasureA_start"
+    },
+    {
+      "calculate": "(datum.MeasureA_start + datum.MeasureA_end) / 2",
+      "as": "MeasureA_mid"
+    },
+    { "calculate": "datum.MeasureA / datum.Total_A", "as": "PercentOfTotalA" },
+    { "calculate": "datum.MeasureB / datum.Total_B", "as": "PercentOfTotalB" },
+    { "calculate": "datum.PercentOfTotalA * 360", "as": "WedgeAngleDegrees" },
+    {
+      "calculate": "innerRadius + (datum.MeasureB / datum.Max_B) * (outerRadius - innerRadius)",
+      "as": "WedgeOuterRadius"
+    },
+    {
+      "calculate": "labelPosition === 'outside' ? outerRadius + labelOutsideOffset : innerRadius + (datum.WedgeOuterRadius - innerRadius) * labelInsideRatio",
+      "as": "LabelRadius"
+    },
+    {
+      "calculate": "isValid(datum.LabelColorOverride) ? datum.LabelColorOverride : (labelPosition === 'outside' ? labelColorOutside : labelColorInside)",
+      "as": "LabelColor"
+    },
+    {
+      "calculate": "labelAutoSize ? max(labelFontSizeMin, min(labelFontSizeMax, labelFontSizeMin + (labelFontSizeMax - labelFontSizeMin) * min(1, datum.WedgeAngleDegrees / labelAutoSizeAngleCap))) : labelFontSizePx",
+      "as": "LabelFontSizeEff"
+    },
+    {
+      "calculate": "replace(replace(datum.Category, regexp('(.{1,' + labelWrapWidth + '})(\\\\s+|$)', 'g'), '$1\\n'), regexp('\\\\n+$'), '')",
+      "as": "CategoryWrapped"
+    },
+    {
+      "calculate": "datum.WedgeAngleDegrees < labelMinAngleDegrees ? '' : (showLabelCategory ? datum.CategoryWrapped : '')",
+      "as": "LabelTitleText"
+    },
+    {
+      "calculate": "datum.WedgeAngleDegrees < labelMinAngleDegrees ? '' : (showLabelMeasureA ? format(datum.MeasureA, measureFormat) : '') + (showLabelMeasureA && (showLabelMeasureB || showLabelPercent) ? '\\n' : '') + (showLabelMeasureB ? format(datum.MeasureB, measureFormat) : '') + (showLabelMeasureB && showLabelPercent ? '\\n' : '') + (showLabelPercent ? format(datum.PercentOfTotalA, percentFormat) : '')",
+      "as": "LabelSubtitleText"
+    },
+    {
+      "calculate": "(datum.MeasureA_mid / datum.Total_A) * 2 * PI",
+      "as": "LeaderAngleRad"
+    },
+    {
+      "calculate": "width / 2 + datum.WedgeOuterRadius * sin(datum.LeaderAngleRad)",
+      "as": "LeaderX1"
+    },
+    {
+      "calculate": "height / 2 - datum.WedgeOuterRadius * cos(datum.LeaderAngleRad)",
+      "as": "LeaderY1"
+    },
+    {
+      "calculate": "width / 2 + (datum.LabelRadius - leaderLineGap) * sin(datum.LeaderAngleRad)",
+      "as": "LeaderX2"
+    },
+    {
+      "calculate": "height / 2 - (datum.LabelRadius - leaderLineGap) * cos(datum.LeaderAngleRad)",
+      "as": "LeaderY2"
+    },
+    {
+      "calculate": "(labelPosition === 'outside' && showLeaderLine && datum.WedgeAngleDegrees >= labelMinAngleDegrees) ? 1 : 0",
+      "as": "LeaderOpacity"
+    },
+    {
+      "calculate": "width / 2 + datum.LabelRadius * sin(datum.LeaderAngleRad)",
+      "as": "LabelAnchorX"
+    },
+    {
+      "calculate": "height / 2 - datum.LabelRadius * cos(datum.LeaderAngleRad)",
+      "as": "LabelAnchorY"
+    },
+    {
+      "calculate": "datum.LabelTitleText === '' ? 0 : length(split(datum.LabelTitleText, '\\n'))",
+      "as": "LabelTitleLineCount"
+    },
+    {
+      "calculate": "datum.LabelSubtitleText === '' ? 0 : length(split(datum.LabelSubtitleText, '\\n'))",
+      "as": "LabelSubtitleLineCount"
+    },
+    {
+      "calculate": "datum.LabelTitleLineCount + datum.LabelSubtitleLineCount",
+      "as": "LabelTotalLineCount"
+    },
+    {
+      "calculate": "datum.LabelAnchorY - (datum.LabelTotalLineCount - 1) * labelLineHeight / 2",
+      "as": "LabelTitleY"
+    },
+    {
+      "calculate": "datum.LabelTitleY + datum.LabelTitleLineCount * labelLineHeight",
+      "as": "LabelSubtitleY"
+    }
+  ],
+
+  "layer": [
+    {
+      "params": [
+        {
+          "name": "wedgeSelect",
+          "select": { "type": "point", "fields": ["Category"] }
+        }
+      ],
+      "mark": {
+        "type": "arc",
+        "cornerRadius": 2,
+        "tooltip": true
+      },
+      "encoding": {
+        "theta": { "field": "MeasureA_end", "type": "quantitative", "scale": { "zero": true } },
+        "theta2": { "field": "MeasureA_start" },
+        "radius": {
+          "field": "MeasureB",
+          "type": "quantitative",
+          "scale": {
+            "zero": true,
+            "range": [{ "expr": "innerRadius" }, { "expr": "outerRadius" }]
+          }
+        },
+        "color": {
+          "field": "Category",
+          "type": "nominal",
+          "scale": { "range": { "field": "ColorOverride" } },
+          "legend": {
+            "title": "Category",
+            "orient": { "expr": "legendOrientEff" },
+            "legendX": { "expr": "legendXEff" },
+            "legendY": { "expr": "legendYEff" },
+            "symbolSize": { "expr": "showLegend ? 100 : 0" },
+            "labelFontSize": { "expr": "showLegend ? 11 : 0" },
+            "titleFontSize": { "expr": "showLegend ? 13 : 0" },
+            "labelColor": { "expr": "legendLabelColor" },
+            "titleColor": { "expr": "legendTitleColor" }
+          }
+        },
+        "stroke": { "value": { "expr": "borderColor" } },
+        "strokeWidth": { "value": { "expr": "borderWidth" } },
+        "fillOpacity": {
+          "condition": { "param": "wedgeSelect", "empty": false, "value": 1 },
+          "value": 1
+        },
+        "tooltip": [
+          { "field": "Category", "type": "nominal" },
+          { "field": "MeasureA", "type": "quantitative", "format": "~s" },
+          { "field": "MeasureB", "type": "quantitative", "format": "~s" },
+          { "field": "PercentOfTotalA", "type": "quantitative", "format": ".1%", "title": "% of Total (Measure A)" }
+        ]
+      }
+    },
+    {
+      "mark": {
+        "type": "rule",
+        "strokeWidth": { "expr": "leaderLineWidth" }
+      },
+      "encoding": {
+        "x": { "field": "LeaderX1", "type": "quantitative", "scale": null, "axis": null },
+        "y": { "field": "LeaderY1", "type": "quantitative", "scale": null, "axis": null },
+        "x2": { "field": "LeaderX2", "type": "quantitative", "scale": null },
+        "y2": { "field": "LeaderY2", "type": "quantitative", "scale": null },
+        "stroke": { "value": { "expr": "leaderLineColor" } },
+        "opacity": { "field": "LeaderOpacity", "type": "quantitative", "scale": null }
+      }
+    },
+    {
+      "mark": {
+        "type": "text",
+        "lineBreak": "\n",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "labelFontFamily" },
+        "lineHeight": { "expr": "labelLineHeight" }
+      },
+      "encoding": {
+        "x": { "field": "LabelAnchorX", "type": "quantitative", "scale": null },
+        "y": { "field": "LabelTitleY", "type": "quantitative", "scale": null },
+        "text": { "field": "LabelTitleText" },
+        "color": { "field": "LabelColor", "type": "nominal", "scale": null },
+        "size": { "field": "LabelFontSizeEff", "type": "quantitative", "scale": null }
+      }
+    },
+    {
+      "mark": {
+        "type": "text",
+        "lineBreak": "\n",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "labelFontFamily" },
+        "lineHeight": { "expr": "labelLineHeight" }
+      },
+      "encoding": {
+        "x": { "field": "LabelAnchorX", "type": "quantitative", "scale": null },
+        "y": { "field": "LabelSubtitleY", "type": "quantitative", "scale": null },
+        "text": { "field": "LabelSubtitleText" },
+        "color": { "value": { "expr": "labelSubtitleColor" } },
+        "size": { "field": "LabelFontSizeEff", "type": "quantitative", "scale": null }
+      }
+    },
+    {
+      "transform": [
+        {
+          "aggregate": [
+            { "op": "max", "field": "Total_A", "as": "TotalA" },
+            { "op": "max", "field": "Total_B", "as": "TotalB" },
+            { "op": "max", "field": "SliceCount", "as": "SliceCountVal" }
+          ]
+        },
+        {
+          "calculate": "showCenterTitle ? centerTitleWrapped : ''",
+          "as": "CenterDefaultTitleText"
+        }
+      ],
+      "mark": {
+        "type": "text",
+        "lineBreak": "\n",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "centerFontFamily" },
+        "fontWeight": { "expr": "centerFontWeight" },
+        "lineHeight": { "expr": "centerDefaultLineHeightEff" },
+        "dy": { "expr": "centerDefaultTitleDy" }
+      },
+      "encoding": {
+        "text": { "field": "CenterDefaultTitleText" },
+        "color": { "value": { "expr": "centerFontColor" } },
+        "size": { "value": { "expr": "centerDefaultFontSize" } },
+        "opacity": {
+          "condition": { "test": "length(data('wedgeSelect_store')) > 0", "value": 0 },
+          "value": 1
+        }
+      }
+    },
+    {
+      "transform": [
+        {
+          "aggregate": [
+            { "op": "max", "field": "Total_A", "as": "TotalA" },
+            { "op": "max", "field": "Total_B", "as": "TotalB" },
+            { "op": "max", "field": "SliceCount", "as": "SliceCountVal" }
+          ]
+        },
+        {
+          "calculate": "(showCenterCount ? datum.SliceCountVal + ' categories' : '') + (showCenterCount && (showCenterMeasureAActual || showCenterMeasureBActual) ? '\\n' : '') + (showCenterMeasureAActual ? format(datum.TotalA, measureFormat) : '') + (showCenterMeasureAActual && showCenterMeasureBActual ? '\\n' : '') + (showCenterMeasureBActual ? format(datum.TotalB, measureFormat) : '')",
+          "as": "CenterDefaultSubtitleText"
+        }
+      ],
+      "mark": {
+        "type": "text",
+        "lineBreak": "\n",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "centerFontFamily" },
+        "lineHeight": { "expr": "centerDefaultLineHeightEff" },
+        "dy": { "expr": "centerDefaultSubtitleDy" }
+      },
+      "encoding": {
+        "text": { "field": "CenterDefaultSubtitleText" },
+        "color": { "value": { "expr": "centerSubtitleColor" } },
+        "size": { "value": { "expr": "centerDefaultFontSize" } },
+        "opacity": {
+          "condition": { "test": "length(data('wedgeSelect_store')) > 0", "value": 0 },
+          "value": 1
+        }
+      }
+    },
+    {
+      "transform": [
+        { "filter": { "param": "wedgeSelect", "empty": false } },
+        {
+          "calculate": "replace(replace(datum.Category, regexp('(.{1,' + centerWrapWidth + '})(\\\\s+|$)', 'g'), '$1\\n'), regexp('\\\\n+$'), '')",
+          "as": "CategoryWrappedForCenter"
+        },
+        {
+          "calculate": "showCenterSelCategory ? datum.CategoryWrappedForCenter : ''",
+          "as": "CenterSelectedTitleText"
+        },
+        {
+          "calculate": "centerSelectedColorFromWedge ? datum.ColorOverride : centerFontColor",
+          "as": "CenterSelectedTitleColor"
+        }
+      ],
+      "mark": {
+        "type": "text",
+        "lineBreak": "\n",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "centerFontFamily" },
+        "fontWeight": { "expr": "centerFontWeight" },
+        "lineHeight": { "expr": "centerSelectedLineHeightEff" },
+        "dy": { "expr": "centerSelectedTitleDy" }
+      },
+      "encoding": {
+        "text": { "field": "CenterSelectedTitleText" },
+        "color": { "field": "CenterSelectedTitleColor", "type": "nominal", "scale": null },
+        "size": { "value": { "expr": "centerSelectedFontSize" } }
+      }
+    },
+    {
+      "transform": [
+        { "filter": { "param": "wedgeSelect", "empty": false } },
+        {
+          "calculate": "(showCenterSelMeasureAActual ? format(datum.MeasureA, measureFormat) : '') + (showCenterSelMeasureAActual && showCenterSelMeasureAPercent ? ' (' : '') + (showCenterSelMeasureAPercent ? format(datum.PercentOfTotalA, percentFormat) : '') + (showCenterSelMeasureAActual && showCenterSelMeasureAPercent ? ')' : '') + ((showCenterSelMeasureAActual || showCenterSelMeasureAPercent) && (showCenterSelMeasureBActual || showCenterSelMeasureBPercent) ? '\\n' : '') + (showCenterSelMeasureBActual ? format(datum.MeasureB, measureFormat) : '') + (showCenterSelMeasureBActual && showCenterSelMeasureBPercent ? ' (' : '') + (showCenterSelMeasureBPercent ? format(datum.PercentOfTotalB, percentFormat) : '') + (showCenterSelMeasureBActual && showCenterSelMeasureBPercent ? ')' : '')",
+          "as": "CenterSelectedSubtitleText"
+        }
+      ],
+      "mark": {
+        "type": "text",
+        "lineBreak": "\n",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "centerFontFamily" },
+        "lineHeight": { "expr": "centerSelectedLineHeightEff" },
+        "dy": { "expr": "centerSelectedSubtitleDy" }
+      },
+      "encoding": {
+        "text": { "field": "CenterSelectedSubtitleText" },
+        "color": { "value": { "expr": "centerSubtitleColor" } },
+        "size": { "value": { "expr": "centerSelectedFontSize" } }
+      }
+    }
+  ],
+
+  "resolve": {
+    "scale": { "theta": "shared", "radius": "shared", "color": "shared" }
+  }
+}

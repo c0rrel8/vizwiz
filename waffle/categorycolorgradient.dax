@@ -1,0 +1,154 @@
+Category2 Color Gradient =
+// NAMED "Category2 Color Gradient", not "Category Color Gradient" --
+// the aster plot already has its own measure named exactly "Category
+// Color Gradient" (visuals/aster-plot/dax/measure-a-color-gradient.dax)
+// in this same shared model, and DAX measure names must be unique per
+// model. An earlier version of this file used the same name as that
+// measure, which got pasted over the aster plot's own live measure by
+// mistake -- see this visual's CHANGELOG for the full story. If you
+// already pasted the old version, re-paste
+// visuals/aster-plot/dax/measure-a-color-gradient.dax (unchanged,
+// provided again alongside this file) to restore the aster plot's
+// original measure.
+//
+// Produces a hex color string per category, log-scale interpolated
+// between #A5C1FF (at the LOWEST category-level total of Measure A) and
+// #4555D6 (at the HIGHEST). Bind this measure into the ColorOverrideFill
+// role in the Values well -- an alternative to the fixed/pinned SWITCH
+// approach in category-fixed-color.dax when you want magnitude to drive
+// color instead of just telling categories apart.
+//
+// Category here is driven by the MappedParameterTwo field parameter (see
+// category-two-field-parameter.dax), which has 4 candidates, all from
+// 'Project_snapshot_Fact': EngagementCodeList, AlphaCode,
+// CustodianDisplayName, EFileName. Same structure as the aster plot's own
+// Category Color Gradient measure (visuals/aster-plot/dax/
+// measure-a-color-gradient.dax) -- see that file's comments for the full
+// writeup of why it's built this way (composite-key MAX-not-SELECTEDVALUE
+// constraint, why SWITCH only branches on already-computed scalars, why
+// MIN/MAX are computed per-candidate up front) -- not repeated here.
+//
+// Log scale rather than linear: Measure A is heavily right-skewed in this
+// data (a few large outliers -- e.g. one dominant category -- against many
+// much smaller values), so a linear 0..1 interpolation compresses almost
+// everything near the MIN end, making most categories look like nearly
+// the same color (confirmed: this exact skew pattern showed up live in
+// this visual's own data before this measure existed). +1 inside LOG
+// guards against LOG(0), assuming Measure A >= 0.
+//
+// KEEP THIS IN SYNC WITH category-two-field-parameter.dax'S CANDIDATE LIST
+// -- add/remove a MinVal_X/MaxVal_X pair (and its SWITCH branch below) for
+// every candidate added/removed there.
+//
+// Measure A is assumed to be the same [Data Recieved GB] measure the
+// aster plot uses, renamed "Measure A" for this visual -- update every
+// [Data Recieved GB] reference below if that assumption is wrong.
+//
+// 'MappedParameterTwo'[Category2] is CONFIRMED -- MappedParameterTwo's
+// label column is named "Category2".
+VAR HexDigits = "0123456789ABCDEF"
+VAR SelectedField = MAX ( 'MappedParameterTwo'[Category2] )
+VAR MinVal_EngagementCodeList =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_EngagementCodeList =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal_AlphaCode =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_AlphaCode =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal_CustodianDisplayName =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_CustodianDisplayName =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal_EFileName =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_EFileName =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", MinVal_EngagementCodeList,
+        "AlphaCode", MinVal_AlphaCode,
+        "CustodianDisplayName", MinVal_CustodianDisplayName,
+        "EFileName", MinVal_EFileName
+    )
+VAR MaxVal =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", MaxVal_EngagementCodeList,
+        "AlphaCode", MaxVal_AlphaCode,
+        "CustodianDisplayName", MaxVal_CustodianDisplayName,
+        "EFileName", MaxVal_EFileName
+    )
+VAR CurVal =
+    CALCULATE ( [Data Recieved GB] )
+VAR LogMin = LOG ( MinVal + 1 )
+VAR LogMax = LOG ( MaxVal + 1 )
+VAR LogCur = LOG ( CurVal + 1 )
+VAR T =
+    IF (
+        LogMax = LogMin,
+        0.5,
+        DIVIDE ( LogCur - LogMin, LogMax - LogMin )
+    )
+// #A5C1FF = R165 G193 B255
+// #4555D6 = R69  G85  B214
+VAR R = ROUND ( 165 + T * ( 69 - 165 ), 0 )
+VAR G = ROUND ( 193 + T * ( 85 - 193 ), 0 )
+VAR B = ROUND ( 255 + T * ( 214 - 255 ), 0 )
+VAR RHi = MID ( HexDigits, INT ( R / 16 ) + 1, 1 )
+VAR RLo = MID ( HexDigits, MOD ( R, 16 ) + 1, 1 )
+VAR GHi = MID ( HexDigits, INT ( G / 16 ) + 1, 1 )
+VAR GLo = MID ( HexDigits, MOD ( G, 16 ) + 1, 1 )
+VAR BHi = MID ( HexDigits, INT ( B / 16 ) + 1, 1 )
+VAR BLo = MID ( HexDigits, MOD ( B, 16 ) + 1, 1 )
+RETURN
+    "#" & RHi & RLo & GHi & GLo & BHi & BLo

@@ -1,0 +1,248 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Waffle Chart: a grid of shapes per category, sized proportionally to MetricA's share of the whole. Optionally split into one small-multiple grid per SeriesCategory (leave that role unbound for a single grid). The first 6 transform steps are the field-mapping adapter -- see the README's 'Field mapping' section before touching any field name in this spec. Shares docs/design-system.md and docs/patterns.md conventions with visuals/aster-plot/.",
+  "data": { "name": "dataset" },
+  "width": "container",
+  "height": "container",
+  "autosize": { "type": "fit", "contains": "padding" },
+  "background": "#182231",
+  "padding": 5,
+
+  "params": [
+    { "name": "gridRows", "value": 10 },
+    { "name": "gridCols", "value": 10 },
+    { "name": "elementSizeRatio", "value": 0.8 },
+    { "name": "gridHorizPadding", "value": 0 },
+    { "name": "gridVertPadding", "value": 0 },
+    { "name": "defaultShape", "value": "circle" },
+
+    { "name": "elementDefaultColor", "value": "#4555D6" },
+    { "name": "elementBorderColor", "value": "#182231" },
+    { "name": "elementBorderWidth", "value": 1 },
+
+    { "name": "seriesColumns", "value": 4 },
+    { "name": "panelGutter", "value": 24 },
+    { "name": "showSeriesLabel", "value": true },
+    { "name": "panelTitleHeight", "value": 22 },
+    { "name": "panelTitleFontFamily", "value": "Segoe UI" },
+    { "name": "panelTitleFontSize", "value": 11 },
+    { "name": "panelTitleFontSizePx", "expr": "panelTitleFontSize * 4 / 3" },
+    { "name": "panelTitleFontWeight", "value": "bold" },
+    { "name": "panelTitleColor", "value": "#FCFCFD" },
+
+    { "name": "showLegend", "value": true },
+    { "name": "legendOrient", "value": "right" },
+    { "name": "legendLabelColor", "value": "#A5B4CB" },
+    { "name": "legendTitleColor", "value": "#A5B4CB" },
+    {
+      "name": "legendOrientEff",
+      "expr": "showLegend ? legendOrient : 'none'"
+    },
+    { "name": "legendXEff", "expr": "showLegend ? null : 0" },
+    { "name": "legendYEff", "expr": "showLegend ? null : 0" }
+  ],
+
+  "transform": [
+    { "calculate": "datum.Category", "as": "Category" },
+    { "calculate": "datum.SeriesCategory", "as": "SeriesCategoryRaw" },
+    { "calculate": "datum.MetricA", "as": "MetricA" },
+    { "calculate": "datum.ColorOverride", "as": "ColorOverride" },
+    { "calculate": "datum.BorderColorOverride", "as": "BorderColorOverride" },
+    { "calculate": "datum.ShapeOverride", "as": "ShapeOverride" },
+
+    {
+      "calculate": "isValid(datum.SeriesCategoryRaw) ? datum.SeriesCategoryRaw : 'All'",
+      "as": "SeriesCategory"
+    },
+
+    {
+      "joinaggregate": [
+        { "op": "sum", "field": "MetricA", "as": "CategoryTotal" }
+      ],
+      "groupby": ["SeriesCategory", "Category"]
+    },
+    {
+      "joinaggregate": [
+        { "op": "sum", "field": "MetricA", "as": "SeriesTotal" }
+      ],
+      "groupby": ["SeriesCategory"]
+    },
+    {
+      "joinaggregate": [
+        { "op": "distinct", "field": "SeriesCategory", "as": "TotalSeriesCount" }
+      ]
+    },
+    {
+      "window": [{ "op": "dense_rank", "as": "SeriesIndex" }],
+      "sort": [{ "field": "SeriesCategory", "order": "ascending" }]
+    },
+    { "calculate": "datum.SeriesIndex - 1", "as": "PanelIndex" },
+    { "calculate": "datum.PanelIndex % seriesColumns", "as": "PanelCol" },
+    { "calculate": "floor(datum.PanelIndex / seriesColumns)", "as": "PanelRow" },
+    { "calculate": "ceil(datum.TotalSeriesCount / seriesColumns)", "as": "TotalPanelRows" },
+    { "calculate": "width / seriesColumns", "as": "RawPanelWidth" },
+    { "calculate": "height / datum.TotalPanelRows", "as": "RawPanelHeight" },
+    { "calculate": "datum.RawPanelWidth - panelGutter", "as": "PanelWidth" },
+    { "calculate": "datum.RawPanelHeight - panelGutter", "as": "PanelHeight" },
+    { "calculate": "datum.PanelCol * datum.RawPanelWidth + panelGutter / 2", "as": "PanelX" },
+    { "calculate": "datum.PanelRow * datum.RawPanelHeight + panelGutter / 2", "as": "PanelY" },
+    {
+      "calculate": "(showSeriesLabel && datum.TotalSeriesCount > 1) ? panelTitleHeight : 0",
+      "as": "PanelTitleReservedHeight"
+    },
+    { "calculate": "datum.PanelWidth", "as": "GridAreaWidth" },
+    { "calculate": "datum.PanelHeight - datum.PanelTitleReservedHeight", "as": "GridAreaHeight" },
+    { "calculate": "datum.PanelX", "as": "GridAreaX" },
+    { "calculate": "datum.PanelY + datum.PanelTitleReservedHeight", "as": "GridAreaY" },
+
+    {
+      "window": [
+        { "op": "sum", "field": "CategoryTotal", "as": "CumulativeMetricA" }
+      ],
+      "frame": [null, 0],
+      "groupby": ["SeriesCategory"]
+    },
+    {
+      "calculate": "round((datum.CumulativeMetricA / datum.SeriesTotal) * (gridRows * gridCols))",
+      "as": "CellEnd"
+    },
+    {
+      "window": [{ "op": "lag", "field": "CellEnd", "as": "CellStart" }],
+      "frame": [null, 0],
+      "groupby": ["SeriesCategory"]
+    },
+    {
+      "calculate": "isValid(datum.CellStart) ? datum.CellStart : 0",
+      "as": "CellStart"
+    },
+    {
+      "calculate": "isValid(datum.ColorOverride) ? datum.ColorOverride : elementDefaultColor",
+      "as": "FillColor"
+    },
+    {
+      "calculate": "isValid(datum.BorderColorOverride) ? datum.BorderColorOverride : elementBorderColor",
+      "as": "StrokeColor"
+    },
+    {
+      "calculate": "isValid(datum.ShapeOverride) ? datum.ShapeOverride : defaultShape",
+      "as": "ShapePath"
+    },
+    { "calculate": "datum.CategoryTotal / datum.SeriesTotal", "as": "PercentOfSeries" },
+
+    { "calculate": "sequence(datum.CellStart, datum.CellEnd)", "as": "CellIndices" },
+    { "flatten": ["CellIndices"] },
+
+    { "calculate": "floor(datum.CellIndices / gridCols)", "as": "CellRow" },
+    { "calculate": "datum.CellIndices % gridCols", "as": "CellCol" },
+    { "calculate": "datum.GridAreaWidth / gridCols", "as": "CellWidth" },
+    { "calculate": "datum.GridAreaHeight / gridRows", "as": "CellHeight" },
+    {
+      "calculate": "datum.GridAreaX + (datum.CellCol + 0.5) * datum.CellWidth",
+      "as": "CellCenterX"
+    },
+    {
+      "calculate": "datum.GridAreaY + (datum.CellRow + 0.5) * datum.CellHeight",
+      "as": "CellCenterY"
+    },
+    {
+      "calculate": "min(datum.CellWidth - gridHorizPadding, datum.CellHeight - gridVertPadding) * elementSizeRatio",
+      "as": "ElementDiameter"
+    },
+    {
+      "calculate": "PI * datum.ElementDiameter * datum.ElementDiameter / 4",
+      "as": "ElementSize"
+    }
+  ],
+
+  "layer": [
+    {
+      "params": [
+        {
+          "name": "categorySelect",
+          "select": { "type": "point", "fields": ["Category"] }
+        }
+      ],
+      "mark": { "type": "point", "filled": true, "tooltip": true },
+      "encoding": {
+        "x": { "field": "CellCenterX", "type": "quantitative", "scale": null, "axis": null },
+        "y": { "field": "CellCenterY", "type": "quantitative", "scale": null, "axis": null },
+        "size": { "field": "ElementSize", "type": "quantitative", "scale": null },
+        "shape": { "field": "ShapePath", "type": "nominal", "scale": null },
+        "fill": {
+          "field": "Category",
+          "type": "nominal",
+          "scale": { "range": { "field": "FillColor" } },
+          "legend": {
+            "title": "Category",
+            "orient": { "expr": "legendOrientEff" },
+            "legendX": { "expr": "legendXEff" },
+            "legendY": { "expr": "legendYEff" },
+            "symbolSize": { "expr": "showLegend ? 100 : 0" },
+            "labelFontSize": { "expr": "showLegend ? 11 : 0" },
+            "titleFontSize": { "expr": "showLegend ? 13 : 0" },
+            "labelColor": { "expr": "legendLabelColor" },
+            "titleColor": { "expr": "legendTitleColor" }
+          }
+        },
+        "stroke": { "field": "StrokeColor", "type": "nominal", "scale": null },
+        "strokeWidth": { "value": { "expr": "elementBorderWidth" } },
+        "fillOpacity": {
+          "condition": { "param": "categorySelect", "empty": true, "value": 1 },
+          "value": 0.25
+        },
+        "tooltip": [
+          { "field": "SeriesCategory", "type": "nominal", "title": "Series" },
+          { "field": "Category", "type": "nominal" },
+          { "field": "MetricA", "type": "quantitative" },
+          { "field": "PercentOfSeries", "type": "quantitative", "format": ".1%", "title": "% of Total" }
+        ]
+      }
+    },
+    {
+      "transform": [
+        {
+          "aggregate": [
+            { "op": "max", "field": "PanelX", "as": "PanelXVal" },
+            { "op": "max", "field": "PanelY", "as": "PanelYVal" },
+            { "op": "max", "field": "PanelWidth", "as": "PanelWidthVal" },
+            { "op": "max", "field": "TotalSeriesCount", "as": "TotalSeriesCountVal" }
+          ],
+          "groupby": ["SeriesCategory"]
+        },
+        {
+          "calculate": "datum.PanelXVal + datum.PanelWidthVal / 2",
+          "as": "PanelTitleX"
+        },
+        {
+          "calculate": "datum.PanelYVal + panelTitleHeight / 2",
+          "as": "PanelTitleY"
+        }
+      ],
+      "mark": {
+        "type": "text",
+        "align": "center",
+        "baseline": "middle",
+        "font": { "expr": "panelTitleFontFamily" },
+        "fontWeight": { "expr": "panelTitleFontWeight" }
+      },
+      "encoding": {
+        "x": { "field": "PanelTitleX", "type": "quantitative", "scale": null, "axis": null },
+        "y": { "field": "PanelTitleY", "type": "quantitative", "scale": null, "axis": null },
+        "text": { "field": "SeriesCategory" },
+        "color": { "value": { "expr": "panelTitleColor" } },
+        "size": { "value": { "expr": "panelTitleFontSizePx" } },
+        "opacity": {
+          "condition": {
+            "test": "showSeriesLabel && datum.TotalSeriesCountVal > 1",
+            "value": 1
+          },
+          "value": 0
+        }
+      }
+    }
+  ],
+
+  "resolve": {
+    "scale": { "color": "shared" }
+  }
+}

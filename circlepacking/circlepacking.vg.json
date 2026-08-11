@@ -1,0 +1,339 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "Circle Packing: a 3-level hierarchy (Level1 > Level2 > Level3), each level driven by its own field parameter over the same 4 candidate columns (3-way exclusion cascade, extending the waffle chart's 2-way pattern). A single metric sizes leaf circles; parent circles are pack-computed to enclose their children. Raw Vega, not Vega-Lite -- true circle packing needs Vega's stratify/pack hierarchy transforms, which have no Vega-Lite equivalent. See docs/patterns.md's 'When to use raw Vega instead of Vega-Lite' before touching this spec's structure, and the README's 'Field mapping' section before touching any field name.",
+  "width": 500,
+  "height": 500,
+  "autosize": { "type": "pad" },
+  "background": "#182231",
+  "padding": 5,
+
+  "signals": [
+    { "name": "packArea", "value": 1 },
+    { "name": "packPadding", "value": 3 },
+    { "name": "strokeWidth", "value": 1 },
+    { "name": "fillStrokeGap", "value": 0 },
+
+    { "name": "level1DefaultFillColor", "value": "#2D3B68" },
+    { "name": "level2DefaultFillColor", "value": "#4555D6" },
+    { "name": "level3DefaultFillColor", "value": "#8C97E8" },
+    { "name": "level1DefaultStrokeColor", "value": "#182231" },
+    { "name": "level2DefaultStrokeColor", "value": "#182231" },
+    { "name": "level3DefaultStrokeColor", "value": "#182231" },
+
+    { "name": "level1ShowLabel", "value": true },
+    { "name": "level2ShowLabel", "value": true },
+    { "name": "level3ShowLabel", "value": false },
+    { "name": "level1LabelPosition", "value": "outside" },
+    { "name": "level2LabelPosition", "value": "center" },
+    { "name": "level3LabelPosition", "value": "center" },
+    { "name": "level1LabelPath", "value": "straight" },
+    { "name": "level2LabelPath", "value": "straight" },
+    { "name": "level3LabelPath", "value": "straight" },
+    { "name": "level1LabelMinRadius", "value": 0 },
+    { "name": "level2LabelMinRadius", "value": 14 },
+    { "name": "level3LabelMinRadius", "value": 10 },
+
+    { "name": "labelFontFamily", "value": "Segoe UI" },
+    { "name": "labelFontSize", "value": 11 },
+    { "name": "labelFontSizePx", "update": "labelFontSize * 4 / 3" },
+    { "name": "labelColor", "value": "#FCFCFD" },
+    { "name": "labelSubtitleColor", "value": "#A5B4CB" },
+
+    { "name": "packOffsetX", "update": "(width - width * packArea) / 2" },
+    { "name": "packOffsetY", "update": "(height - height * packArea) / 2" },
+    { "name": "packCenterX", "update": "width * packArea / 2" },
+    { "name": "packCenterY", "update": "height * packArea / 2" },
+
+    {
+      "name": "packSelect",
+      "value": null,
+      "on": [
+        { "events": "@fillMark:click", "update": "datum.Id === packSelect ? null : datum.Id" }
+      ]
+    }
+  ],
+
+  "data": [
+    { "name": "dataset" },
+    {
+      "name": "mapped",
+      "source": "dataset",
+      "transform": [
+        {
+          "type": "formula", "as": "Level1Source",
+          "expr": "isValid(datum.EngagementCodeList) ? 'EngagementCodeList' : isValid(datum.AlphaCode) ? 'AlphaCode' : isValid(datum.CustodianDisplayName) ? 'CustodianDisplayName' : isValid(datum.EFileName) ? 'EFileName' : ''"
+        },
+        {
+          "type": "formula", "as": "Level1",
+          "expr": "isValid(datum.EngagementCodeList) ? datum.EngagementCodeList : isValid(datum.AlphaCode) ? datum.AlphaCode : isValid(datum.CustodianDisplayName) ? datum.CustodianDisplayName : isValid(datum.EFileName) ? datum.EFileName : '(Unspecified)'"
+        },
+        {
+          "type": "formula", "as": "Level2Source",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList') ? 'EngagementCodeList' : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode') ? 'AlphaCode' : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName') ? 'CustodianDisplayName' : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName') ? 'EFileName' : ''"
+        },
+        {
+          "type": "formula", "as": "Level2",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName') ? datum.EFileName : 'All'"
+        },
+        {
+          "type": "formula", "as": "Level3",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList' && datum.Level2Source !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode' && datum.Level2Source !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName' && datum.Level2Source !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName' && datum.Level2Source !== 'EFileName') ? datum.EFileName : 'All'"
+        },
+        { "type": "formula", "as": "Metric", "expr": "datum['Measure A']" },
+        {
+          "type": "formula", "as": "MetricHighlight",
+          "expr": "isValid(datum['Measure A__highlight']) ? datum['Measure A__highlight'] : datum['Measure A']"
+        },
+        { "type": "formula", "as": "Level1FillOverride", "expr": "datum.Level1ColorOverrideFill" },
+        { "type": "formula", "as": "Level1StrokeOverride", "expr": "datum.Level1ColorOverrideBorder" },
+        { "type": "formula", "as": "Level2FillOverride", "expr": "datum.Level2ColorOverrideFill" },
+        { "type": "formula", "as": "Level2StrokeOverride", "expr": "datum.Level2ColorOverrideBorder" },
+        { "type": "formula", "as": "Level3FillOverride", "expr": "datum.Level3ColorOverrideFill" },
+        { "type": "formula", "as": "Level3StrokeOverride", "expr": "datum.Level3ColorOverrideBorder" },
+        { "type": "formula", "as": "L1Id", "expr": "'L1:' + datum.Level1" },
+        { "type": "formula", "as": "L2Id", "expr": "datum.L1Id + '|L2:' + datum.Level2" },
+        { "type": "formula", "as": "L3Id", "expr": "datum.L2Id + '|L3:' + datum.Level3" }
+      ]
+    },
+    {
+      "name": "level1Nodes",
+      "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L1Id"],
+          "fields": ["Metric", "MetricHighlight", "Level1FillOverride", "Level1StrokeOverride", "Level1"],
+          "ops": ["sum", "sum", "min", "min", "min"],
+          "as": ["Value", "HighlightValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        {
+          "type": "joinaggregate", "fields": ["Value"], "ops": ["sum"], "as": ["ParentValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L1Id" },
+        { "type": "formula", "as": "ParentId", "expr": "'root'" },
+        { "type": "formula", "as": "LevelIndex", "expr": "1" },
+        { "type": "formula", "as": "PercentOfParent", "expr": "datum.ParentValue > 0 ? datum.Value / datum.ParentValue : 0" }
+      ]
+    },
+    {
+      "name": "level2Nodes",
+      "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L2Id", "L1Id"],
+          "fields": ["Metric", "MetricHighlight", "Level2FillOverride", "Level2StrokeOverride", "Level2"],
+          "ops": ["sum", "sum", "min", "min", "min"],
+          "as": ["Value", "HighlightValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        {
+          "type": "joinaggregate", "groupby": ["L1Id"], "fields": ["Value"], "ops": ["sum"], "as": ["ParentValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L2Id" },
+        { "type": "formula", "as": "ParentId", "expr": "datum.L1Id" },
+        { "type": "formula", "as": "LevelIndex", "expr": "2" },
+        { "type": "formula", "as": "PercentOfParent", "expr": "datum.ParentValue > 0 ? datum.Value / datum.ParentValue : 0" }
+      ]
+    },
+    {
+      "name": "leafNodes",
+      "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L3Id", "L2Id"],
+          "fields": ["Metric", "MetricHighlight", "Level3FillOverride", "Level3StrokeOverride", "Level3"],
+          "ops": ["sum", "sum", "min", "min", "min"],
+          "as": ["Value", "HighlightValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        {
+          "type": "joinaggregate", "groupby": ["L2Id"], "fields": ["Value"], "ops": ["sum"], "as": ["ParentValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L3Id" },
+        { "type": "formula", "as": "ParentId", "expr": "datum.L2Id" },
+        { "type": "formula", "as": "LevelIndex", "expr": "3" },
+        { "type": "formula", "as": "PercentOfParent", "expr": "datum.ParentValue > 0 ? datum.Value / datum.ParentValue : 0" }
+      ]
+    },
+    {
+      "name": "rootNode",
+      "values": [
+        { "Id": "root", "ParentId": null, "LevelIndex": 0, "Value": null, "HighlightValue": null,
+          "FillOverride": null, "StrokeOverride": null, "Name": "root", "PercentOfParent": 1 }
+      ]
+    },
+    {
+      "name": "nodes",
+      "source": ["rootNode", "level1Nodes", "level2Nodes", "leafNodes"],
+      "transform": [
+        { "type": "stratify", "key": "Id", "parentKey": "ParentId" },
+        {
+          "type": "pack", "field": "Value",
+          "size": [{ "signal": "width * packArea" }, { "signal": "height * packArea" }],
+          "padding": { "signal": "packPadding" }
+        },
+        {
+          "type": "formula", "as": "IsHighlighted",
+          "expr": "datum.HighlightValue > 0"
+        },
+        {
+          "type": "formula", "as": "DefaultFillColor",
+          "expr": "datum.LevelIndex === 1 ? level1DefaultFillColor : datum.LevelIndex === 2 ? level2DefaultFillColor : level3DefaultFillColor"
+        },
+        {
+          "type": "formula", "as": "DefaultStrokeColor",
+          "expr": "datum.LevelIndex === 1 ? level1DefaultStrokeColor : datum.LevelIndex === 2 ? level2DefaultStrokeColor : level3DefaultStrokeColor"
+        },
+        {
+          "type": "formula", "as": "FillColor",
+          "expr": "isValid(datum.FillOverride) ? datum.FillOverride : datum.DefaultFillColor"
+        },
+        {
+          "type": "formula", "as": "StrokeColor",
+          "expr": "isValid(datum.StrokeOverride) ? datum.StrokeOverride : datum.DefaultStrokeColor"
+        },
+        {
+          "type": "formula", "as": "RadialAngleRad",
+          "expr": "atan2(datum.y - packCenterY, datum.x - packCenterX)"
+        },
+        {
+          "type": "formula", "as": "RadialLabelAngleDeg",
+          "expr": "datum.RadialAngleRad * 180 / PI + (abs(datum.RadialAngleRad * 180 / PI) > 90 ? 180 : 0)"
+        },
+        { "type": "collect", "sort": { "field": "depth" } }
+      ]
+    },
+    {
+      "name": "packedNodes",
+      "source": "nodes",
+      "transform": [{ "type": "filter", "expr": "datum.depth >= 1" }]
+    },
+    {
+      "name": "level1NodeLabels",
+      "source": "packedNodes",
+      "transform": [{ "type": "filter", "expr": "datum.LevelIndex === 1 && level1ShowLabel && datum.r >= level1LabelMinRadius" }]
+    },
+    {
+      "name": "level2NodeLabels",
+      "source": "packedNodes",
+      "transform": [{ "type": "filter", "expr": "datum.LevelIndex === 2 && level2ShowLabel && datum.r >= level2LabelMinRadius" }]
+    },
+    {
+      "name": "level3NodeLabels",
+      "source": "packedNodes",
+      "transform": [{ "type": "filter", "expr": "datum.LevelIndex === 3 && level3ShowLabel && datum.r >= level3LabelMinRadius" }]
+    }
+  ],
+
+  "marks": [
+    {
+      "name": "strokeMark",
+      "type": "symbol",
+      "from": { "data": "packedNodes" },
+      "encode": {
+        "update": {
+          "x": { "signal": "datum.x + packOffsetX" },
+          "y": { "signal": "datum.y + packOffsetY" },
+          "shape": { "value": "circle" },
+          "size": { "signal": "4 * pow(datum.r, 2)" },
+          "fill": { "value": null },
+          "stroke": { "field": "StrokeColor" },
+          "strokeWidth": { "signal": "strokeWidth" }
+        }
+      }
+    },
+    {
+      "name": "fillMark",
+      "type": "symbol",
+      "from": { "data": "packedNodes" },
+      "encode": {
+        "update": {
+          "x": { "signal": "datum.x + packOffsetX" },
+          "y": { "signal": "datum.y + packOffsetY" },
+          "shape": { "value": "circle" },
+          "size": { "signal": "4 * pow(max(0, datum.r - strokeWidth / 2 - fillStrokeGap), 2)" },
+          "fill": { "field": "FillColor" },
+          "fillOpacity": [
+            { "test": "!datum.IsHighlighted", "value": 0.25 },
+            { "test": "!packSelect", "value": 1 },
+            {
+              "test": "datum.Id === packSelect || indexof(datum.Id, packSelect + '|') === 0 || indexof(packSelect, datum.Id + '|') === 0",
+              "value": 1
+            },
+            { "value": 0.25 }
+          ],
+          "cursor": { "value": "pointer" },
+          "tooltip": {
+            "signal": "{'Level': datum.LevelIndex === 1 ? 'Level 1' : datum.LevelIndex === 2 ? 'Level 2' : 'Level 3', 'Category': datum.Name, 'Value': format(datum.Value, '~s'), '% of parent': format(datum.PercentOfParent, '.1%')}"
+          }
+        }
+      }
+    },
+    {
+      "name": "level1Labels",
+      "type": "text",
+      "interactive": false,
+      "from": { "data": "level1NodeLabels" },
+      "encode": {
+        "update": {
+          "x": {
+            "signal": "datum.x + packOffsetX + (level1LabelPath === 'radial' ? (level1LabelPosition === 'center' ? 0 : level1LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)) * sin(datum.RadialAngleRad) : 0)"
+          },
+          "y": {
+            "signal": "datum.y + packOffsetY + (level1LabelPath === 'radial' ? -(level1LabelPosition === 'center' ? 0 : level1LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)) * cos(datum.RadialAngleRad) : (level1LabelPosition === 'center' ? 0 : level1LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)))"
+          },
+          "angle": { "signal": "level1LabelPath === 'radial' ? datum.RadialLabelAngleDeg : 0" },
+          "text": { "field": "Name" },
+          "align": { "value": "center" },
+          "baseline": { "value": "middle" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "labelColor" }
+        }
+      }
+    },
+    {
+      "name": "level2Labels",
+      "type": "text",
+      "interactive": false,
+      "from": { "data": "level2NodeLabels" },
+      "encode": {
+        "update": {
+          "x": {
+            "signal": "datum.x + packOffsetX + (level2LabelPath === 'radial' ? (level2LabelPosition === 'center' ? 0 : level2LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)) * sin(datum.RadialAngleRad) : 0)"
+          },
+          "y": {
+            "signal": "datum.y + packOffsetY + (level2LabelPath === 'radial' ? -(level2LabelPosition === 'center' ? 0 : level2LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)) * cos(datum.RadialAngleRad) : (level2LabelPosition === 'center' ? 0 : level2LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)))"
+          },
+          "angle": { "signal": "level2LabelPath === 'radial' ? datum.RadialLabelAngleDeg : 0" },
+          "text": { "field": "Name" },
+          "align": { "value": "center" },
+          "baseline": { "value": "middle" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "labelSubtitleColor" }
+        }
+      }
+    },
+    {
+      "name": "level3Labels",
+      "type": "text",
+      "interactive": false,
+      "from": { "data": "level3NodeLabels" },
+      "encode": {
+        "update": {
+          "x": {
+            "signal": "datum.x + packOffsetX + (level3LabelPath === 'radial' ? (level3LabelPosition === 'center' ? 0 : level3LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)) * sin(datum.RadialAngleRad) : 0)"
+          },
+          "y": {
+            "signal": "datum.y + packOffsetY + (level3LabelPath === 'radial' ? -(level3LabelPosition === 'center' ? 0 : level3LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)) * cos(datum.RadialAngleRad) : (level3LabelPosition === 'center' ? 0 : level3LabelPosition === 'top' ? -datum.r * 0.6 : -(datum.r + 8)))"
+          },
+          "angle": { "signal": "level3LabelPath === 'radial' ? datum.RadialLabelAngleDeg : 0" },
+          "text": { "field": "Name" },
+          "align": { "value": "center" },
+          "baseline": { "value": "middle" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "labelSubtitleColor" }
+        }
+      }
+    }
+  ]
+}

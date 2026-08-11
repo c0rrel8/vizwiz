@@ -1,0 +1,162 @@
+Category Color Gradient =
+// Produces a hex color string per category, linearly interpolated between
+// #263449 (at the LOWEST category-level total of MeasureA) and #4555D6 (at
+// the HIGHEST). Bind this measure into the ColorOverride role in the Values
+// well.
+//
+// Category here is driven by the MappedParameter field parameter (see
+// dax/category-field-parameter.dax), which has 4 candidates, all from
+// 'Project_snapshot_Fact': EngagementCodeList, AlphaCode,
+// CustodianDisplayName, EFileName.
+//
+// DAX cannot dynamically dereference "whichever column the field parameter
+// currently points at" -- same static-reference constraint as Vega-Lite's
+// own field bindings, just a different layer. Things that look like they
+// should work, don't:
+//   - ALLSELECTED('MappedParameter'[Category]) AND
+//     SELECTEDVALUE('MappedParameter'[Category]) both throw "Column
+//     [Category] is part of composite key, but not all columns of the
+//     composite key are included" -- confirmed live for both functions.
+//     Root cause (confirmed via SQLBI): Power BI sets a "Group By Columns"
+//     property on field-parameter-generated tables, linking the Value/
+//     Fields/Order columns into a composite key -- touching any single one
+//     of them via a filter-context function like SELECTEDVALUE or
+//     ALLSELECTED fails, not just ALLSELECTED as first assumed. The fix is
+//     to use MAX instead (below) -- it returns the same single selected
+//     value for a single-select slicer, but doesn't trigger the
+//     composite-key check. (ALLSELECTED('MappedParameter'[Category]) is
+//     also the wrong table regardless of the composite-key issue: that
+//     column holds the field parameter's own candidate LABELS, not the
+//     actual category values within whichever field is selected.)
+//   - ALLSELECTED() with no arguments throws "ALLSELECTED function without
+//     parameters cannot be used as a table expression. It can appear only
+//     as a filter in CALCULATE."
+//   - SWITCH branching between whole ADDCOLUMNS tables, stored in a VAR and
+//     consumed later by MINX/MAXX, is unreliable -- SWITCH is built for
+//     scalar branches, not table-valued ones.
+//
+// The fix below: compute each candidate's MinVal/MaxVal as its own plain
+// scalar variable first (4 candidates x 2 = 8 variables, each a normal,
+// unambiguous MINX/MAXX over its own ADDCOLUMNS table -- no VAR holds a
+// table that's later branched on). Only THEN does SWITCH pick which pair
+// of already-computed SCALARS to actually use, based on
+// MAX('MappedParameter'[Category]) -- a scalar-only SWITCH, which is
+// unambiguously valid.
+//
+// KEEP THIS IN SYNC WITH dax/category-field-parameter.dax'S CANDIDATE LIST
+// -- add/remove a MinVal_X/MaxVal_X pair (and its SWITCH branch below) for
+// every candidate added/removed there. This coupling is inherent to DAX's
+// static-reference limitation, not a bug.
+//
+// MeasureA is [Data Recieved GB] below.
+VAR HexDigits = "0123456789ABCDEF"
+VAR SelectedField = MAX ( 'MappedParameter'[Category] )
+VAR MinVal_EngagementCodeList =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_EngagementCodeList =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal_AlphaCode =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_AlphaCode =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal_CustodianDisplayName =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_CustodianDisplayName =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal_EFileName =
+    MINX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MaxVal_EFileName =
+    MAXX (
+        ADDCOLUMNS (
+            ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
+            "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+        ),
+        [CategoryTotalTemp]
+    )
+VAR MinVal =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", MinVal_EngagementCodeList,
+        "AlphaCode", MinVal_AlphaCode,
+        "CustodianDisplayName", MinVal_CustodianDisplayName,
+        "EFileName", MinVal_EFileName
+    )
+VAR MaxVal =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", MaxVal_EngagementCodeList,
+        "AlphaCode", MaxVal_AlphaCode,
+        "CustodianDisplayName", MaxVal_CustodianDisplayName,
+        "EFileName", MaxVal_EFileName
+    )
+VAR CurVal =
+    CALCULATE ( [Data Recieved GB] )
+// Log scale rather than linear: MeasureA here is heavily right-skewed (a
+// few large outliers against many small values), so a linear 0..1
+// interpolation compresses almost everything near MinVal -- e.g. a value
+// at 4% of the way to MaxVal is visually indistinguishable from MinVal.
+// +1 inside LOG guards against LOG(0), assuming MeasureA >= 0.
+VAR LogMin = LOG ( MinVal + 1 )
+VAR LogMax = LOG ( MaxVal + 1 )
+VAR LogCur = LOG ( CurVal + 1 )
+VAR T =
+    IF (
+        LogMax = LogMin,
+        0.5,
+        DIVIDE ( LogCur - LogMin, LogMax - LogMin )
+    )
+// #263449 = R38  G52  B73
+// #4555D6 = R69  G85  B214
+VAR R = ROUND ( 38 + T * ( 69 - 38 ), 0 )
+VAR G = ROUND ( 52 + T * ( 85 - 52 ), 0 )
+VAR B = ROUND ( 73 + T * ( 214 - 73 ), 0 )
+VAR RHi = MID ( HexDigits, INT ( R / 16 ) + 1, 1 )
+VAR RLo = MID ( HexDigits, MOD ( R, 16 ) + 1, 1 )
+VAR GHi = MID ( HexDigits, INT ( G / 16 ) + 1, 1 )
+VAR GLo = MID ( HexDigits, MOD ( G, 16 ) + 1, 1 )
+VAR BHi = MID ( HexDigits, INT ( B / 16 ) + 1, 1 )
+VAR BLo = MID ( HexDigits, MOD ( B, 16 ) + 1, 1 )
+RETURN
+    "#" & RHi & RLo & GHi & GLo & BHi & BLo

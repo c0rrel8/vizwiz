@@ -1,0 +1,27 @@
+Level1 Fixed Color Stroke =
+SWITCH (
+    MAX ( 'MappedParameter'[Category] ),
+    "PLACEHOLDER_VALUE_1", "#FCFCFD",
+    BLANK () // falls back to level1DefaultStrokeColor in the spec -- see below
+)
+// Level1's field parameter is 'MappedParameter'[Category] -- see
+// level-fixed-color-fill.dax for the full writeup (same field parameter,
+// same MAX-not-SELECTEDVALUE reasoning, same "one of three, copy per
+// level with a unique measure name and the level's own field parameter"
+// note -- Level2/Level3 use 'MappedParameterTwo'[Category2]/
+// 'MappedParameterThree'[Category3] respectively). This file exists
+// separately from the fill version because
+// fill and stroke are independent per-category overrides, each with its
+// own fallback param (level1DefaultFillColor vs level1DefaultStrokeColor)
+// -- most of the time you won't need this at all, since every level's
+// default stroke color already matches the shared background (#182231),
+// giving every circle a clean, uniform outline. Use this measure only if
+// specific categories need to stand out with a distinct stroke (e.g.
+// flagging an outlier), leaving BLANK() for everything else.
+//
+// Bind to Level1ColorOverrideBorder (rename for this visual -- the spec
+// maps it to the internal Level1StrokeOverride role). Unlike the older
+// ColorOverrideBorder fields on the aster plot and waffle chart, this
+// field is new to this visual and was never bound live before it existed
+// -- so it uses "Stroke," not "Border," in its own raw field name from
+// the start, per docs/design-system.md's naming convention.

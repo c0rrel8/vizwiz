@@ -1,0 +1,45 @@
+Level1 Fixed Color Fill =
+SWITCH (
+    MAX ( 'MappedParameter'[Category] ),
+    "PLACEHOLDER_VALUE_1", "#01B8AA",
+    "PLACEHOLDER_VALUE_2", "#FD625E",
+    "PLACEHOLDER_VALUE_3", "#F2C80F",
+    BLANK () // falls back to level1DefaultFillColor in the spec -- see below
+)
+// Level1's field parameter is 'MappedParameter'[Category] -- the SAME
+// table the aster plot's own Category role already uses (per the report
+// author). Not a new table; see category-three-field-parameter.dax for
+// the one genuinely new field parameter this visual needs (Level3's
+// MappedParameterThree), and its comments for the shared-slicer
+// implication of reusing MappedParameter/MappedParameterTwo here for
+// Level1/Level2.
+//
+// One of THREE near-identical measures this visual needs -- copy this
+// same SWITCH shape for Level 2 and Level 3, swapping the field parameter
+// reference and giving each its OWN unique measure name (DAX measure
+// names are unique per model, per docs/patterns.md's "Shared data model"
+// section):
+//   Level2 Fixed Color Fill = SWITCH ( MAX ( 'MappedParameterTwo'[Category2] ), ... )
+//   Level3 Fixed Color Fill = SWITCH ( MAX ( 'MappedParameterThree'[Category3] ), ... )
+// The SWITCH branches themselves (category values -> hex colors) are
+// still placeholders above -- replace with this report's real category
+// values once known; they aren't the same across levels since each level
+// is a different grouping.
+//
+// Bind to Level1ColorOverrideFill (rename for this visual -- see
+// spec/circle-packing.vg.json's field-mapping adapter, which maps
+// Level1ColorOverrideFill -> the internal Level1FillOverride role).
+// Falls back to level1DefaultFillColor when unbound or BLANK() -- leaving
+// BLANK() as the final SWITCH branch (rather than a fallback color
+// literal) lets the spec's own isValid() check apply the param instead,
+// so the fallback color stays a spec-level setting rather than needing to
+// be duplicated inside every DAX measure.
+//
+// Uses MAX, not SELECTEDVALUE or ALLSELECTED -- 'MappedParameter'[Category]
+// is CONFIRMED composite-keyed (Power BI links a field parameter's
+// Value/Fields/Order columns together as "Group By Columns"; a
+// filter-context function on just one throws "part of composite key" --
+// see visuals/aster-plot/dax/measure-a-color-gradient.dax for the full
+// writeup). MappedParameterTwo/MappedParameterThree are presumed the same
+// (every field parameter table behaves this way), but not each
+// individually re-confirmed.

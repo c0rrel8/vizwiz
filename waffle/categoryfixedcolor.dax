@@ -1,0 +1,30 @@
+Category Fixed Color =
+SWITCH (
+    MAX ( 'MappedParameterTwo'[Category2] ),
+    "EngagementCodeList", "#01B8AA",
+    "AlphaCode", "#FD625E",
+    "CustodianDisplayName", "#F2C80F",
+    "EFileName", "#8AD4EB",
+    "#A5B4CB" // default/fallback -- matches docs/design-system.md's subtitle tier
+)
+// Bind this to the ColorOverrideFill field (rename for this visual --
+// see spec/waffle-chart.vl.json's field-mapping adapter, which maps
+// ColorOverrideFill -> the internal ColorOverride role). Gives every
+// distinct value the Category role resolves to (via MappedParameterTwo,
+// see category-two-field-parameter.dax) its own pinned color -- not a
+// magnitude gradient, since this field's only job is "color the members
+// of the Parameter B set" (there's no least-to-greatest comparison
+// happening, unlike the aster plot's Category Color Gradient measure).
+//
+// Uses MAX, not SELECTEDVALUE or ALLSELECTED -- MappedParameterTwo's
+// Value/Fields/Order columns are linked into a composite key by Power BI
+// ("Group By Columns"), and a filter-context function on just one of them
+// throws "part of composite key" (same confirmed finding as the aster
+// plot's own MappedParameter -- see
+// visuals/aster-plot/dax/measure-a-color-gradient.dax for the full
+// writeup, and category-two-field-parameter.dax for this table's own
+// definition).
+//
+// 'MappedParameterTwo'[Category2] is CONFIRMED -- MappedParameterTwo's
+// label column is named "Category2" (unlike the aster plot's own
+// MappedParameter, whose label column ended up renamed to "Category").

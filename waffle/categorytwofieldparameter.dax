@@ -1,0 +1,40 @@
+MappedParameterTwo = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// A second, independent field parameter over the exact same 4 candidate
+// columns as the aster plot's own MappedParameter (see
+// visuals/aster-plot/dax/category-field-parameter.dax) -- lets a report
+// viewer swap which column drives the waffle chart's Category role
+// (bound to the visual's "Category2" role) via its own slicer,
+// independently of whatever MappedParameter (bound to the "Category"
+// role, feeding this visual's SeriesCategoryRaw) is currently sliced to.
+//
+// CONFIRMED LIVE (via a "view as table" screenshot with MappedParameter
+// sliced to AlphaCode and MappedParameterTwo sliced to EngagementCodeList):
+// Deneb exposes both roles as separate, simultaneous keys in the same
+// row when they're sliced to different candidates -- no forced collision.
+// But since both field parameters share the exact same 4 candidate names,
+// and a field parameter's resolved key can't be renamed per-visual (same
+// finding as MappedParameter, see category-field-parameter.dax), a naive
+// isValid() cascade checking the same 4 candidates in the same order for
+// both roles cannot tell them apart -- it will resolve BOTH roles to
+// whichever candidate happens to be checked first and present, regardless
+// of which field parameter it actually came from (reproduced locally
+// before this was understood). The spec's field-mapping adapter
+// (visuals/waffle-chart/spec/waffle-chart.vl.json) fixes this with an
+// exclusion cascade: Category resolves first (highest-priority candidate
+// present, same as always), then SeriesCategoryRaw resolves to the
+// highest-priority *remaining* candidate that Category didn't already
+// claim. See the README's "Field mapping" section for the full mechanism
+// and the one scenario it can't disambiguate (both field parameters
+// sliced to the identical column at the same time -- SeriesCategory
+// safely falls back to "All" rather than showing a false duplicate).
+//
+// If you ever reference this table's own columns in a measure, use MAX,
+// not SELECTEDVALUE or ALLSELECTED -- same composite-key constraint as
+// MappedParameter, see visuals/aster-plot/dax/measure-a-color-gradient.dax
+// for the full writeup. This table's own label column is CONFIRMED named
+// "Category2" -- reference it as 'MappedParameterTwo'[Category2].

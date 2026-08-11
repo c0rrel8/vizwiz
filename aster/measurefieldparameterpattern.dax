@@ -1,0 +1,41 @@
+MeasureA =
+VAR SelectedOrder =
+    SELECTEDVALUE ( 'MeasureA Field Parameter'[MeasureA Field Parameter Order] )
+RETURN
+    SWITCH (
+        SelectedOrder,
+        0, [Revenue Measure],
+        1, [Units Sold Measure],
+        2, [Customer Count Measure]
+    )
+// Optional pattern: making MeasureA (or MeasureB) swappable via a slicer,
+// the same way Category is.
+//
+// Unlike Category, this is NOT required -- MeasureA/MeasureB are ordinary
+// measures, so they can always be renamed-for-this-visual freely with no
+// naming constraint. Use this pattern only if you specifically want a
+// report viewer to swap which underlying measure feeds MeasureA at view
+// time (e.g. toggling between Revenue / Units Sold / Customer Count).
+//
+// Unlike a field-parameter-driven Category, this measure itself keeps a
+// perfectly normal, freely-renameable identity -- the field parameter here
+// only selects which measure it evaluates internally, via SWITCH. DAX has
+// no way to dynamically dereference "whichever measure is selected" without
+// enumerating the candidates like this -- same static-reference constraint
+// as Vega-Lite's own field bindings.
+//
+// Setup:
+// 1) Create a SEPARATE field parameter (a distinct DAX object from the
+//    MeasureA measure above -- Modeling -> New parameter -> Fields) over
+//    your candidate measures, e.g. named "MeasureA Field Parameter":
+//
+//    MeasureA Field Parameter = {
+//        ("Revenue", NAMEOF ( [Revenue Measure] ), 0),
+//        ("Units Sold", NAMEOF ( [Units Sold Measure] ), 1),
+//        ("Customer Count", NAMEOF ( [Customer Count Measure] ), 2)
+//    }
+//
+// 2) Add a slicer bound to it.
+//
+// 3) The MeasureA measure above wraps that selection in a stably-named
+//    measure -- THIS is what actually goes in the Values well as MeasureA.

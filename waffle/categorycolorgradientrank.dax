@@ -1,0 +1,175 @@
+Category2 Color Gradient Rank =
+// Alternative to category-color-gradient.dax: instead of interpolating
+// color by each category's *relative magnitude* of Measure A (which
+// compresses badly when the data is skewed, even on a log scale), this
+// ranks categories by Measure A and spaces colors EQUALLY by rank --
+// step size = 1 / (member count - 1), regardless of how close or far
+// apart the underlying values actually are. Bind this measure into the
+// ColorOverrideFill role the same way as the other Category2 color
+// measures (only one should be bound at a time).
+//
+// NAMED "Category2 Color Gradient Rank", not "Category Color Gradient
+// Rank" or anything reusing an existing measure's name -- DAX measure
+// names are unique per model, and this model already has both "Category
+// Color Gradient" (aster plot) and "Category2 Color Gradient" (this
+// visual's magnitude-based measure). See docs/patterns.md's "Shared data
+// model" section before naming any future measure in this model.
+//
+// DIRECTION IS DELIBERATELY REVERSED from category-color-gradient.dax:
+// rank 1 (the LARGEST Measure A) maps to the LIGHTEST color (#A5C1FF);
+// the smallest-ranked category maps to the DARKEST (#4555D6). Confirmed
+// with the report author this is intentional, not a copy-paste of the
+// other measure's direction.
+//
+// Ties (identical Measure A for two categories) are broken alphabetically
+// by category name -- confirmed with the report author this should be
+// rare in practice, and when it happens the alphabetically-earlier name
+// wins the better (lower/lighter) rank. This is implemented as a manual
+// "count how many rows are strictly better" rank rather than RANKX,
+// because RANKX only ranks by one expression and has no built-in
+// secondary tie-break: a row's rank = 1 + how many other rows have either
+// a strictly higher Measure A, or an equal Measure A with an
+// alphabetically-earlier name. Since that comparison is a strict total
+// order, no two rows can ever land on the same rank -- there's no
+// "dense vs. skip" ties question to answer, unlike a plain RANKX.
+//
+// Same field-parameter structure as this visual's other DAX measures:
+// Category is driven by MappedParameterTwo (see
+// category-two-field-parameter.dax), with 4 candidates from
+// 'Project_snapshot_Fact': EngagementCodeList, AlphaCode,
+// CustodianDisplayName, EFileName. DAX can't dynamically dereference
+// "whichever column is currently selected," so every candidate's
+// rank/member-count is computed as its own scalar up front, and SWITCH
+// only picks between already-computed scalars -- see
+// visuals/aster-plot/dax/measure-a-color-gradient.dax for the full
+// writeup of why (SWITCH on table-valued branches is unreliable; MAX,
+// not SELECTEDVALUE/ALLSELECTED, for the field parameter's own
+// composite-keyed column).
+//
+// Member count and rank are scoped to ALLSELECTED, matching
+// category-color-gradient.dax's own MinVal/MaxVal scope, so both
+// measures respond to slicers/filters the same way.
+//
+// KEEP THIS IN SYNC WITH category-two-field-parameter.dax'S CANDIDATE
+// LIST -- add/remove a per-candidate block (and its two SWITCH branches)
+// for every candidate added/removed there.
+//
+// Measure A is assumed to be the same [Data Recieved GB] measure the
+// aster plot uses, renamed "Measure A" for this visual -- update every
+// [Data Recieved GB] reference below if that assumption is wrong.
+VAR HexDigits = "0123456789ABCDEF"
+VAR SelectedField = MAX ( 'MappedParameterTwo'[Category2] )
+
+VAR SummaryTable_EngagementCodeList =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
+        "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+    )
+VAR TotalMembers_EngagementCodeList = COUNTROWS ( SummaryTable_EngagementCodeList )
+VAR CurVal_EngagementCodeList = CALCULATE ( [Data Recieved GB] )
+VAR CurName_EngagementCodeList = SELECTEDVALUE ( 'Project_snapshot_Fact'[EngagementCodeList] )
+VAR Rank_EngagementCodeList =
+    COUNTROWS (
+        FILTER (
+            SummaryTable_EngagementCodeList,
+            [CategoryTotalTemp] > CurVal_EngagementCodeList
+                || ( [CategoryTotalTemp] = CurVal_EngagementCodeList
+                     && [EngagementCodeList] < CurName_EngagementCodeList )
+        )
+    ) + 1
+
+VAR SummaryTable_AlphaCode =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
+        "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+    )
+VAR TotalMembers_AlphaCode = COUNTROWS ( SummaryTable_AlphaCode )
+VAR CurVal_AlphaCode = CALCULATE ( [Data Recieved GB] )
+VAR CurName_AlphaCode = SELECTEDVALUE ( 'Project_snapshot_Fact'[AlphaCode] )
+VAR Rank_AlphaCode =
+    COUNTROWS (
+        FILTER (
+            SummaryTable_AlphaCode,
+            [CategoryTotalTemp] > CurVal_AlphaCode
+                || ( [CategoryTotalTemp] = CurVal_AlphaCode
+                     && [AlphaCode] < CurName_AlphaCode )
+        )
+    ) + 1
+
+VAR SummaryTable_CustodianDisplayName =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
+        "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+    )
+VAR TotalMembers_CustodianDisplayName = COUNTROWS ( SummaryTable_CustodianDisplayName )
+VAR CurVal_CustodianDisplayName = CALCULATE ( [Data Recieved GB] )
+VAR CurName_CustodianDisplayName = SELECTEDVALUE ( 'Project_snapshot_Fact'[CustodianDisplayName] )
+VAR Rank_CustodianDisplayName =
+    COUNTROWS (
+        FILTER (
+            SummaryTable_CustodianDisplayName,
+            [CategoryTotalTemp] > CurVal_CustodianDisplayName
+                || ( [CategoryTotalTemp] = CurVal_CustodianDisplayName
+                     && [CustodianDisplayName] < CurName_CustodianDisplayName )
+        )
+    ) + 1
+
+VAR SummaryTable_EFileName =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
+        "CategoryTotalTemp", CALCULATE ( [Data Recieved GB] )
+    )
+VAR TotalMembers_EFileName = COUNTROWS ( SummaryTable_EFileName )
+VAR CurVal_EFileName = CALCULATE ( [Data Recieved GB] )
+VAR CurName_EFileName = SELECTEDVALUE ( 'Project_snapshot_Fact'[EFileName] )
+VAR Rank_EFileName =
+    COUNTROWS (
+        FILTER (
+            SummaryTable_EFileName,
+            [CategoryTotalTemp] > CurVal_EFileName
+                || ( [CategoryTotalTemp] = CurVal_EFileName
+                     && [EFileName] < CurName_EFileName )
+        )
+    ) + 1
+
+VAR TotalMembers =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", TotalMembers_EngagementCodeList,
+        "AlphaCode", TotalMembers_AlphaCode,
+        "CustodianDisplayName", TotalMembers_CustodianDisplayName,
+        "EFileName", TotalMembers_EFileName
+    )
+// Named RankValue, not Rank -- confirmed live that a bare "VAR Rank ="
+// throws a syntax error. Power BI DAX now has a real built-in RANK
+// function (part of the newer window-function family alongside
+// ROWNUMBER/OFFSET/INDEX), so a variable named exactly "Rank" collides
+// with it. The per-candidate Rank_EngagementCodeList-style names above
+// are unaffected -- only the bare word "Rank" collides.
+VAR RankValue =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", Rank_EngagementCodeList,
+        "AlphaCode", Rank_AlphaCode,
+        "CustodianDisplayName", Rank_CustodianDisplayName,
+        "EFileName", Rank_EFileName
+    )
+VAR T =
+    IF (
+        TotalMembers <= 1,
+        0.5,
+        DIVIDE ( RankValue - 1, TotalMembers - 1 )
+    )
+// #A5C1FF = R165 G193 B255 (T=0, rank 1 / largest Measure A)
+// #4555D6 = R69  G85  B214 (T=1, last rank / smallest Measure A)
+VAR R = ROUND ( 165 + T * ( 69 - 165 ), 0 )
+VAR G = ROUND ( 193 + T * ( 85 - 193 ), 0 )
+VAR B = ROUND ( 255 + T * ( 214 - 255 ), 0 )
+VAR RHi = MID ( HexDigits, INT ( R / 16 ) + 1, 1 )
+VAR RLo = MID ( HexDigits, MOD ( R, 16 ) + 1, 1 )
+VAR GHi = MID ( HexDigits, INT ( G / 16 ) + 1, 1 )
+VAR GLo = MID ( HexDigits, MOD ( G, 16 ) + 1, 1 )
+VAR BHi = MID ( HexDigits, INT ( B / 16 ) + 1, 1 )
+VAR BLo = MID ( HexDigits, MOD ( B, 16 ) + 1, 1 )
+RETURN
+    "#" & RHi & RLo & GHi & GLo & BHi & BLo
