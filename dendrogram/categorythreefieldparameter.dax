@@ -1,0 +1,10 @@
+MappedParameterThree = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// Field parameter table for Level 3 (shared across hierarchy visuals).
+// Same 4 candidate columns as MappedParameter and MappedParameterTwo.
+// See patterns.md "Field parameters need isValid() enumeration" for why
+// this table exists and how the exclusion cascade works.

@@ -1,0 +1,13 @@
+Dendrogram Level1 Fixed Color Stroke =
+// Per-category stroke color override for dendrogram Level 1 nodes.
+// Copy for Level 2 / Level 3 with unique names and matching field
+// parameter references (MappedParameterTwo / MappedParameterThree).
+// Bind to Level1ColorOverrideBorder in Deneb.
+// When BLANK(), the spec falls back to level1DefaultStrokeColor (#182231).
+VAR _Category = MAX ( 'MappedParameter'[Category] )
+RETURN
+    SWITCH (
+        _Category,
+        "PLACEHOLDER_VALUE_1", "#FCFCFD",
+        BLANK ()
+    )
