@@ -10,6 +10,7 @@ aster/          Vega-Lite (.vl.json) — radial wedge chart (angle + radius)
 waffle/         Vega-Lite (.vl.json) — grid-of-shapes proportional chart
 circlepacking/  Raw Vega  (.vg.json) — nested circles, 3-level hierarchy
 sunburst/       Raw Vega  (.vg.json) — concentric arc rings, 3-level hierarchy
+dendrogram/     Raw Vega  (.vg.json) — tree diagram, 3-level hierarchy
 ```
 
 Root-level files: `patterns.md` (architectural patterns), `designsystem.md`

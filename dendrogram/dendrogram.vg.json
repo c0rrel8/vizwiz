@@ -1,0 +1,429 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "Dendrogram: a 3-level hierarchy (Level1 > Level2 > Level3) rendered as a tree diagram with configurable orientation (vertical, horizontal, radial), layout method (tree vs cluster), and branch style (stepped, angled, spline). Each level is driven by its own field parameter over the same 4 candidate columns (3-way exclusion cascade). Two optional metrics: Measure A sizes node circles, Measure B scales branch thickness. Raw Vega, not Vega-Lite — tree/cluster are hierarchy layouts with no Vega-Lite equivalent. Provider must be set to Vega before pasting in Deneb.",
+  "width": 600,
+  "height": 500,
+  "autosize": { "type": "pad" },
+  "background": "#182231",
+  "padding": 5,
+
+  "signals": [
+    { "name": "layoutMethod", "value": "cluster" },
+    { "name": "orientation", "value": "horizontal" },
+    { "name": "branchStyle", "value": "spline" },
+
+    { "name": "linkShape", "update": "branchStyle === 'stepped' ? 'orthogonal' : branchStyle === 'angled' ? 'line' : 'diagonal'" },
+
+    { "name": "layoutPadding", "value": 60 },
+    { "name": "radialInnerRadius", "value": 30 },
+
+    { "name": "availWidth", "update": "width - 2 * layoutPadding" },
+    { "name": "availHeight", "update": "height - 2 * layoutPadding" },
+    { "name": "maxRadius", "update": "min(width, height) / 2 - layoutPadding" },
+    { "name": "centerX", "update": "width / 2" },
+    { "name": "centerY", "update": "height / 2" },
+
+    { "name": "treeBreadth", "update": "orientation === 'radial' ? 2 * PI : orientation === 'horizontal' ? availHeight : availWidth" },
+    { "name": "treeDepth", "update": "orientation === 'radial' ? maxRadius - radialInnerRadius : orientation === 'horizontal' ? availWidth : availHeight" },
+
+    { "name": "nodeMarkMode", "value": "all" },
+    { "name": "nodeRadius", "value": 5 },
+    { "name": "nodeRadiusMetric", "value": false },
+    { "name": "nodeSizeMin", "value": 3 },
+    { "name": "nodeSizeMax", "value": 12 },
+    { "name": "strokeWidth", "value": 1 },
+
+    { "name": "branchStrokeWidth", "value": 1.5 },
+    { "name": "branchStrokeWidthMetric", "value": false },
+    { "name": "branchWidthMin", "value": 0.5 },
+    { "name": "branchWidthMax", "value": 8 },
+    { "name": "branchStrokeColor", "value": "#A5B4CB" },
+
+    { "name": "level1DefaultFillColor", "value": "#2D3B68" },
+    { "name": "level2DefaultFillColor", "value": "#4555D6" },
+    { "name": "level3DefaultFillColor", "value": "#8C97E8" },
+    { "name": "level1DefaultStrokeColor", "value": "#182231" },
+    { "name": "level2DefaultStrokeColor", "value": "#182231" },
+    { "name": "level3DefaultStrokeColor", "value": "#182231" },
+
+    { "name": "level1ShowLabel", "value": true },
+    { "name": "level2ShowLabel", "value": false },
+    { "name": "level3ShowLabel", "value": true },
+
+    { "name": "labelFontFamily", "value": "Segoe UI" },
+    { "name": "labelFontSize", "value": 11 },
+    { "name": "labelFontSizePx", "update": "labelFontSize * 4 / 3" },
+    { "name": "labelColor", "value": "#FCFCFD" },
+    { "name": "labelSubtitleColor", "value": "#A5B4CB" },
+    { "name": "labelOffset", "update": "nodeMarkMode === 'none' ? 4 : nodeRadius + 4" },
+
+    {
+      "name": "dendrogramSelect",
+      "value": null,
+      "on": [
+        { "events": "@nodeMark:click", "update": "datum.Id === dendrogramSelect ? null : datum.Id" }
+      ]
+    }
+  ],
+
+  "data": [
+    { "name": "dataset" },
+    {
+      "name": "mapped",
+      "source": "dataset",
+      "transform": [
+        {
+          "type": "formula", "as": "Level1Source",
+          "expr": "isValid(datum.EngagementCodeList) ? 'EngagementCodeList' : isValid(datum.AlphaCode) ? 'AlphaCode' : isValid(datum.CustodianDisplayName) ? 'CustodianDisplayName' : isValid(datum.EFileName) ? 'EFileName' : ''"
+        },
+        {
+          "type": "formula", "as": "Level1",
+          "expr": "isValid(datum.EngagementCodeList) ? datum.EngagementCodeList : isValid(datum.AlphaCode) ? datum.AlphaCode : isValid(datum.CustodianDisplayName) ? datum.CustodianDisplayName : isValid(datum.EFileName) ? datum.EFileName : '(Unspecified)'"
+        },
+        {
+          "type": "formula", "as": "Level2Source",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList') ? 'EngagementCodeList' : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode') ? 'AlphaCode' : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName') ? 'CustodianDisplayName' : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName') ? 'EFileName' : ''"
+        },
+        {
+          "type": "formula", "as": "Level2",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName') ? datum.EFileName : 'All'"
+        },
+        {
+          "type": "formula", "as": "Level3",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList' && datum.Level2Source !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode' && datum.Level2Source !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName' && datum.Level2Source !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName' && datum.Level2Source !== 'EFileName') ? datum.EFileName : 'All'"
+        },
+        { "type": "formula", "as": "NodeMetric", "expr": "datum['Measure A']" },
+        {
+          "type": "formula", "as": "NodeMetricHighlight",
+          "expr": "isValid(datum['Measure A__highlight']) ? datum['Measure A__highlight'] : datum['Measure A']"
+        },
+        { "type": "formula", "as": "BranchMetric", "expr": "datum['Measure B']" },
+        { "type": "formula", "as": "Level1FillOverride", "expr": "datum.Level1ColorOverrideFill" },
+        { "type": "formula", "as": "Level1StrokeOverride", "expr": "datum.Level1ColorOverrideBorder" },
+        { "type": "formula", "as": "Level2FillOverride", "expr": "datum.Level2ColorOverrideFill" },
+        { "type": "formula", "as": "Level2StrokeOverride", "expr": "datum.Level2ColorOverrideBorder" },
+        { "type": "formula", "as": "Level3FillOverride", "expr": "datum.Level3ColorOverrideFill" },
+        { "type": "formula", "as": "Level3StrokeOverride", "expr": "datum.Level3ColorOverrideBorder" },
+        { "type": "formula", "as": "L1Id", "expr": "'L1:' + datum.Level1" },
+        { "type": "formula", "as": "L2Id", "expr": "datum.L1Id + '|L2:' + datum.Level2" },
+        { "type": "formula", "as": "L3Id", "expr": "datum.L2Id + '|L3:' + datum.Level3" }
+      ]
+    },
+    {
+      "name": "level1Nodes",
+      "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L1Id"],
+          "fields": ["NodeMetric", "NodeMetricHighlight", "BranchMetric", "Level1FillOverride", "Level1StrokeOverride", "Level1"],
+          "ops": ["sum", "sum", "sum", "min", "min", "min"],
+          "as": ["NodeValue", "NodeHighlightValue", "BranchValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        {
+          "type": "joinaggregate", "fields": ["NodeValue"], "ops": ["sum"], "as": ["ParentValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L1Id" },
+        { "type": "formula", "as": "ParentId", "expr": "'root'" },
+        { "type": "formula", "as": "LevelIndex", "expr": "1" },
+        { "type": "formula", "as": "PercentOfParent", "expr": "datum.ParentValue > 0 ? datum.NodeValue / datum.ParentValue : 0" }
+      ]
+    },
+    {
+      "name": "level2Nodes",
+      "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L2Id", "L1Id"],
+          "fields": ["NodeMetric", "NodeMetricHighlight", "BranchMetric", "Level2FillOverride", "Level2StrokeOverride", "Level2"],
+          "ops": ["sum", "sum", "sum", "min", "min", "min"],
+          "as": ["NodeValue", "NodeHighlightValue", "BranchValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        {
+          "type": "joinaggregate", "groupby": ["L1Id"], "fields": ["NodeValue"], "ops": ["sum"], "as": ["ParentValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L2Id" },
+        { "type": "formula", "as": "ParentId", "expr": "datum.L1Id" },
+        { "type": "formula", "as": "LevelIndex", "expr": "2" },
+        { "type": "formula", "as": "PercentOfParent", "expr": "datum.ParentValue > 0 ? datum.NodeValue / datum.ParentValue : 0" }
+      ]
+    },
+    {
+      "name": "leafNodes",
+      "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L3Id", "L2Id"],
+          "fields": ["NodeMetric", "NodeMetricHighlight", "BranchMetric", "Level3FillOverride", "Level3StrokeOverride", "Level3"],
+          "ops": ["sum", "sum", "sum", "min", "min", "min"],
+          "as": ["NodeValue", "NodeHighlightValue", "BranchValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        {
+          "type": "joinaggregate", "groupby": ["L2Id"], "fields": ["NodeValue"], "ops": ["sum"], "as": ["ParentValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L3Id" },
+        { "type": "formula", "as": "ParentId", "expr": "datum.L2Id" },
+        { "type": "formula", "as": "LevelIndex", "expr": "3" },
+        { "type": "formula", "as": "PercentOfParent", "expr": "datum.ParentValue > 0 ? datum.NodeValue / datum.ParentValue : 0" }
+      ]
+    },
+    {
+      "name": "rootNode",
+      "values": [
+        { "Id": "root", "ParentId": null, "LevelIndex": 0, "NodeValue": null, "NodeHighlightValue": null,
+          "BranchValue": null, "FillOverride": null, "StrokeOverride": null, "Name": "root", "PercentOfParent": 1 }
+      ]
+    },
+    {
+      "name": "nodes",
+      "source": ["rootNode", "level1Nodes", "level2Nodes", "leafNodes"],
+      "transform": [
+        { "type": "stratify", "key": "Id", "parentKey": "ParentId" },
+        {
+          "type": "tree",
+          "method": { "signal": "layoutMethod" },
+          "size": [{ "signal": "treeBreadth" }, { "signal": "treeDepth" }],
+          "as": ["treeX", "treeY", "treeDepth", "treeChildren"]
+        },
+        {
+          "type": "formula", "as": "PlotX",
+          "expr": "orientation === 'radial' ? centerX + (datum.treeY + radialInnerRadius) * sin(datum.treeX) : orientation === 'horizontal' ? datum.treeY + layoutPadding : datum.treeX + layoutPadding"
+        },
+        {
+          "type": "formula", "as": "PlotY",
+          "expr": "orientation === 'radial' ? centerY - (datum.treeY + radialInnerRadius) * cos(datum.treeX) : orientation === 'horizontal' ? datum.treeX + layoutPadding : datum.treeY + layoutPadding"
+        },
+        {
+          "type": "formula", "as": "IsHighlighted",
+          "expr": "datum.NodeHighlightValue > 0"
+        },
+        {
+          "type": "formula", "as": "DefaultFillColor",
+          "expr": "datum.LevelIndex === 1 ? level1DefaultFillColor : datum.LevelIndex === 2 ? level2DefaultFillColor : level3DefaultFillColor"
+        },
+        {
+          "type": "formula", "as": "DefaultStrokeColor",
+          "expr": "datum.LevelIndex === 1 ? level1DefaultStrokeColor : datum.LevelIndex === 2 ? level2DefaultStrokeColor : level3DefaultStrokeColor"
+        },
+        {
+          "type": "formula", "as": "FillColor",
+          "expr": "isValid(datum.FillOverride) ? datum.FillOverride : datum.DefaultFillColor"
+        },
+        {
+          "type": "formula", "as": "StrokeColor",
+          "expr": "isValid(datum.StrokeOverride) ? datum.StrokeOverride : datum.DefaultStrokeColor"
+        },
+        {
+          "type": "formula", "as": "LabelAngleDeg",
+          "expr": "orientation === 'radial' ? datum.treeX * 180 / PI - 90 + (datum.treeX >= PI ? 180 : 0) : 0"
+        },
+        { "type": "collect", "sort": { "field": "treeDepth" } }
+      ]
+    },
+    {
+      "name": "links",
+      "source": "nodes",
+      "transform": [
+        { "type": "treelinks" },
+        {
+          "type": "formula", "as": "sx",
+          "expr": "orientation === 'horizontal' ? datum.source.treeY : datum.source.treeX"
+        },
+        {
+          "type": "formula", "as": "sy",
+          "expr": "orientation === 'radial' ? datum.source.treeY + radialInnerRadius : orientation === 'horizontal' ? datum.source.treeX : datum.source.treeY"
+        },
+        {
+          "type": "formula", "as": "tx",
+          "expr": "orientation === 'horizontal' ? datum.target.treeY : datum.target.treeX"
+        },
+        {
+          "type": "formula", "as": "ty",
+          "expr": "orientation === 'radial' ? datum.target.treeY + radialInnerRadius : orientation === 'horizontal' ? datum.target.treeX : datum.target.treeY"
+        },
+        {
+          "type": "linkpath",
+          "shape": { "signal": "linkShape" },
+          "orient": { "signal": "orientation" },
+          "sourceX": "sx", "sourceY": "sy",
+          "targetX": "tx", "targetY": "ty"
+        },
+        { "type": "formula", "as": "BranchValue", "expr": "datum.target.BranchValue" },
+        {
+          "type": "formula", "as": "LinkInSelection",
+          "expr": "!dendrogramSelect ? true : (datum.source.Id === dendrogramSelect || datum.target.Id === dendrogramSelect || indexof(datum.source.Id, dendrogramSelect + '|') === 0 || indexof(dendrogramSelect, datum.source.Id + '|') === 0 || indexof(datum.target.Id, dendrogramSelect + '|') === 0 || indexof(dendrogramSelect, datum.target.Id + '|') === 0)"
+        }
+      ]
+    },
+    {
+      "name": "visibleNodes",
+      "source": "nodes",
+      "transform": [
+        { "type": "filter", "expr": "datum.LevelIndex >= 1 && (nodeMarkMode === 'all' || (nodeMarkMode === 'leaves' && datum.LevelIndex === 3))" }
+      ]
+    },
+    {
+      "name": "level1Labels",
+      "source": "nodes",
+      "transform": [
+        { "type": "filter", "expr": "datum.LevelIndex === 1 && level1ShowLabel" }
+      ]
+    },
+    {
+      "name": "level2Labels",
+      "source": "nodes",
+      "transform": [
+        { "type": "filter", "expr": "datum.LevelIndex === 2 && level2ShowLabel" }
+      ]
+    },
+    {
+      "name": "level3Labels",
+      "source": "nodes",
+      "transform": [
+        { "type": "filter", "expr": "datum.LevelIndex === 3 && level3ShowLabel" }
+      ]
+    }
+  ],
+
+  "scales": [
+    {
+      "name": "nodeSizeScale",
+      "type": "sqrt",
+      "domain": { "data": "visibleNodes", "field": "NodeValue" },
+      "range": [{ "signal": "4 * nodeSizeMin * nodeSizeMin" }, { "signal": "4 * nodeSizeMax * nodeSizeMax" }],
+      "zero": true
+    },
+    {
+      "name": "branchWidthScale",
+      "type": "linear",
+      "domain": { "data": "links", "field": "BranchValue" },
+      "range": [{ "signal": "branchWidthMin" }, { "signal": "branchWidthMax" }],
+      "zero": true
+    }
+  ],
+
+  "marks": [
+    {
+      "name": "linkMark",
+      "type": "path",
+      "from": { "data": "links" },
+      "encode": {
+        "update": {
+          "path": { "field": "path" },
+          "x": { "signal": "orientation === 'radial' ? centerX : layoutPadding" },
+          "y": { "signal": "orientation === 'radial' ? centerY : layoutPadding" },
+          "stroke": { "signal": "branchStrokeColor" },
+          "strokeWidth": [
+            { "test": "branchStrokeWidthMetric && isValid(datum.BranchValue) && datum.BranchValue > 0",
+              "scale": "branchWidthScale", "field": "BranchValue" },
+            { "signal": "branchStrokeWidth" }
+          ],
+          "strokeOpacity": [
+            { "test": "!datum.target.IsHighlighted", "value": 0.15 },
+            { "test": "datum.LinkInSelection", "value": 0.7 },
+            { "value": 0.15 }
+          ],
+          "fill": { "value": "none" },
+          "tooltip": {
+            "signal": "{'From': datum.source.Name, 'To': datum.target.Name, 'Value': datum.target.NodeValue != null ? format(datum.target.NodeValue, '~s') : '–'}"
+          }
+        }
+      }
+    },
+    {
+      "name": "nodeMark",
+      "type": "symbol",
+      "from": { "data": "visibleNodes" },
+      "encode": {
+        "update": {
+          "x": { "field": "PlotX" },
+          "y": { "field": "PlotY" },
+          "shape": { "value": "circle" },
+          "size": [
+            { "test": "nodeRadiusMetric && isValid(datum.NodeValue) && datum.NodeValue > 0",
+              "scale": "nodeSizeScale", "field": "NodeValue" },
+            { "signal": "4 * nodeRadius * nodeRadius" }
+          ],
+          "fill": { "field": "FillColor" },
+          "stroke": { "field": "StrokeColor" },
+          "strokeWidth": { "signal": "strokeWidth" },
+          "fillOpacity": [
+            { "test": "!datum.IsHighlighted", "value": 0.25 },
+            { "test": "!dendrogramSelect", "value": 1 },
+            {
+              "test": "datum.Id === dendrogramSelect || indexof(datum.Id, dendrogramSelect + '|') === 0 || indexof(dendrogramSelect, datum.Id + '|') === 0",
+              "value": 1
+            },
+            { "value": 0.25 }
+          ],
+          "cursor": { "value": "pointer" },
+          "tooltip": {
+            "signal": "{'Level': datum.LevelIndex === 1 ? 'Level 1' : datum.LevelIndex === 2 ? 'Level 2' : 'Level 3', 'Category': datum.Name, 'Value': datum.NodeValue != null ? format(datum.NodeValue, '~s') : '–', '% of parent': format(datum.PercentOfParent, '.1%')}"
+          }
+        }
+      }
+    },
+    {
+      "name": "level1LabelMark",
+      "type": "text",
+      "interactive": false,
+      "from": { "data": "level1Labels" },
+      "encode": {
+        "update": {
+          "x": { "field": "PlotX" },
+          "y": { "field": "PlotY" },
+          "dx": { "signal": "orientation === 'radial' ? (datum.treeX < PI ? labelOffset : -labelOffset) : 0" },
+          "dy": { "signal": "orientation === 'radial' ? 0 : -labelOffset" },
+          "align": { "signal": "orientation === 'radial' ? (datum.treeX < PI ? 'left' : 'right') : 'center'" },
+          "baseline": { "signal": "orientation === 'radial' ? 'middle' : 'bottom'" },
+          "angle": { "field": "LabelAngleDeg" },
+          "text": { "field": "Name" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "labelColor" }
+        }
+      }
+    },
+    {
+      "name": "level2LabelMark",
+      "type": "text",
+      "interactive": false,
+      "from": { "data": "level2Labels" },
+      "encode": {
+        "update": {
+          "x": { "field": "PlotX" },
+          "y": { "field": "PlotY" },
+          "dx": { "signal": "orientation === 'radial' ? (datum.treeX < PI ? labelOffset : -labelOffset) : 0" },
+          "dy": { "signal": "orientation === 'radial' ? 0 : -labelOffset" },
+          "align": { "signal": "orientation === 'radial' ? (datum.treeX < PI ? 'left' : 'right') : 'center'" },
+          "baseline": { "signal": "orientation === 'radial' ? 'middle' : 'bottom'" },
+          "angle": { "field": "LabelAngleDeg" },
+          "text": { "field": "Name" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "labelSubtitleColor" }
+        }
+      }
+    },
+    {
+      "name": "level3LabelMark",
+      "type": "text",
+      "interactive": false,
+      "from": { "data": "level3Labels" },
+      "encode": {
+        "update": {
+          "x": { "field": "PlotX" },
+          "y": { "field": "PlotY" },
+          "dx": { "signal": "orientation === 'radial' ? (datum.treeX < PI ? labelOffset : -labelOffset) : orientation === 'horizontal' ? labelOffset : 0" },
+          "dy": { "signal": "orientation === 'vertical' ? labelOffset : (orientation === 'radial' ? 0 : 0)" },
+          "align": { "signal": "orientation === 'radial' ? (datum.treeX < PI ? 'left' : 'right') : orientation === 'horizontal' ? 'left' : 'center'" },
+          "baseline": { "signal": "orientation === 'vertical' ? 'top' : 'middle'" },
+          "angle": { "field": "LabelAngleDeg" },
+          "text": { "field": "Name" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "labelSubtitleColor" }
+        }
+      }
+    }
+  ]
+}
