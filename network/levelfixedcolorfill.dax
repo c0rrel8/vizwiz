@@ -1,0 +1,16 @@
+Network Level1 Fixed Color Fill =
+// Per-category fill color override for network Level 1 nodes.
+// Copy this measure for Level 2 and Level 3 with unique names:
+//   "Network Level2 Fixed Color Fill" referencing MappedParameterTwo
+//   "Network Level3 Fixed Color Fill" referencing MappedParameterThree
+// Bind the resulting measure to the Level1ColorOverrideFill field in Deneb.
+// When BLANK(), the spec falls back to level1DefaultFillColor (#2D3B68).
+VAR _Category = MAX ( 'MappedParameter'[Category] )
+RETURN
+    SWITCH (
+        _Category,
+        "PLACEHOLDER_VALUE_1", "#01B8AA",
+        "PLACEHOLDER_VALUE_2", "#FD625E",
+        "PLACEHOLDER_VALUE_3", "#F2C80F",
+        BLANK ()
+    )
