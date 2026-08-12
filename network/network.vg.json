@@ -1,0 +1,588 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "Network Diagram: nodes and edges from either a 3-level hierarchy (field parameters, same exclusion cascade as sunburst/circlepacking/dendrogram) or an edge-list (Source/Target columns). Four layout algorithms: force-directed, circular, grid, hierarchical (hierarchy mode only — falls back to force in edge-list mode). Directed/undirected toggle with arrowheads. Draggable nodes (experimental). Raw Vega — force transform has no Vega-Lite equivalent. Provider must be set to Vega before pasting in Deneb.",
+  "width": 600,
+  "height": 600,
+  "autosize": { "type": "pad" },
+  "background": "#182231",
+  "padding": 5,
+
+  "signals": [
+    { "name": "dataMode", "value": "hierarchy" },
+    { "name": "layoutMode", "value": "force" },
+    { "name": "directed", "value": false },
+    { "name": "effectiveLayout", "update": "(layoutMode === 'hierarchical' && dataMode === 'edgelist') ? 'force' : layoutMode" },
+
+    { "name": "forcePreset", "value": "balanced" },
+    { "name": "presetLinkDistance", "update": "forcePreset === 'compact' ? 30 : forcePreset === 'spread' ? 80 : 50" },
+    { "name": "presetNbodyStrength", "update": "forcePreset === 'compact' ? -30 : forcePreset === 'spread' ? -100 : -60" },
+    { "name": "presetLinkStrength", "update": "forcePreset === 'compact' ? 0.3 : forcePreset === 'spread' ? 0.05 : 0.1" },
+
+    { "name": "linkDistanceOverride", "value": null },
+    { "name": "nbodyStrengthOverride", "value": null },
+    { "name": "linkStrengthOverride", "value": null },
+
+    { "name": "linkDistance", "update": "isValid(linkDistanceOverride) ? linkDistanceOverride : presetLinkDistance" },
+    { "name": "nbodyStrength", "update": "isValid(nbodyStrengthOverride) ? nbodyStrengthOverride : presetNbodyStrength" },
+    { "name": "linkStrength", "update": "isValid(linkStrengthOverride) ? linkStrengthOverride : presetLinkStrength" },
+
+    { "name": "effectiveLinkStrength", "update": "effectiveLayout === 'force' ? linkStrength : 0" },
+    { "name": "effectiveNbodyStrength", "update": "effectiveLayout === 'force' ? nbodyStrength : 0" },
+    { "name": "effectivePositionStrength", "update": "effectiveLayout === 'force' ? 0 : 1" },
+
+    { "name": "nodeSizeMode", "value": "fixed" },
+    { "name": "nodeRadius", "value": 6 },
+    { "name": "nodeSizeMin", "value": 3 },
+    { "name": "nodeSizeMax", "value": 15 },
+    { "name": "strokeWidth", "value": 1 },
+
+    { "name": "edgeStyle", "value": "straight" },
+    { "name": "edgeCurveOffset", "value": 25 },
+    { "name": "edgeStrokeWidth", "value": 1 },
+    { "name": "edgeWeightThickness", "value": false },
+    { "name": "edgeWeightOpacity", "value": false },
+    { "name": "edgeWeightColor", "value": false },
+    { "name": "edgeWidthMin", "value": 0.5 },
+    { "name": "edgeWidthMax", "value": 6 },
+    { "name": "edgeOpacityMin", "value": 0.15 },
+    { "name": "edgeOpacityMax", "value": 0.8 },
+    { "name": "edgeStrokeColor", "value": "#A5B4CB" },
+    { "name": "edgeWeightColorLow", "value": "#2D3B68" },
+    { "name": "edgeWeightColorHigh", "value": "#8C97E8" },
+
+    { "name": "level1DefaultFillColor", "value": "#2D3B68" },
+    { "name": "level2DefaultFillColor", "value": "#4555D6" },
+    { "name": "level3DefaultFillColor", "value": "#8C97E8" },
+    { "name": "level1DefaultStrokeColor", "value": "#182231" },
+    { "name": "level2DefaultStrokeColor", "value": "#182231" },
+    { "name": "level3DefaultStrokeColor", "value": "#182231" },
+    { "name": "nodeDefaultFillColor", "value": "#4555D6" },
+    { "name": "nodeDefaultStrokeColor", "value": "#182231" },
+
+    { "name": "labelMode", "value": "show" },
+    { "name": "labelMinDegree", "value": 1 },
+    { "name": "labelFontFamily", "value": "Segoe UI" },
+    { "name": "labelFontSize", "value": 11 },
+    { "name": "labelFontSizePx", "update": "labelFontSize * 4 / 3" },
+    { "name": "labelColor", "value": "#FCFCFD" },
+    { "name": "labelSubtitleColor", "value": "#A5B4CB" },
+
+    { "name": "centerX", "update": "width / 2" },
+    { "name": "centerY", "update": "height / 2" },
+    { "name": "layoutRadius", "update": "min(width, height) / 2 - 60" },
+
+    { "name": "arrowLength", "value": 8 },
+    { "name": "arrowAngle", "value": 0.4 },
+
+    {
+      "name": "networkSelect", "value": null,
+      "on": [
+        { "events": "@nodeMark:click", "update": "datum.Id === networkSelect ? null : datum.Id" }
+      ]
+    },
+    {
+      "name": "hoverNode", "value": null,
+      "on": [
+        { "events": "@nodeMark:mouseover", "update": "datum.Id" },
+        { "events": "@nodeMark:mouseout", "update": "null" }
+      ]
+    },
+
+    {
+      "name": "fix", "value": false,
+      "on": [
+        { "events": "@nodeMark:mouseout[!event.buttons], window:mouseup", "update": "false" },
+        { "events": "@nodeMark:mouseover", "update": "fix || true" },
+        { "events": "[@nodeMark:mousedown, window:mouseup] > window:mousemove!", "update": "xy()" }
+      ]
+    },
+    {
+      "name": "dragNode", "value": null,
+      "on": [
+        { "events": "@nodeMark:mouseover", "update": "fix === true ? item() : dragNode" }
+      ]
+    },
+    {
+      "name": "restart", "value": false,
+      "on": [
+        { "events": { "signal": "fix" }, "update": "fix && fix.length" }
+      ]
+    }
+  ],
+
+  "data": [
+    { "name": "dataset" },
+
+    {
+      "name": "mapped",
+      "source": "dataset",
+      "transform": [
+        {
+          "type": "formula", "as": "Level1Source",
+          "expr": "isValid(datum.EngagementCodeList) ? 'EngagementCodeList' : isValid(datum.AlphaCode) ? 'AlphaCode' : isValid(datum.CustodianDisplayName) ? 'CustodianDisplayName' : isValid(datum.EFileName) ? 'EFileName' : ''"
+        },
+        {
+          "type": "formula", "as": "Level1",
+          "expr": "isValid(datum.EngagementCodeList) ? datum.EngagementCodeList : isValid(datum.AlphaCode) ? datum.AlphaCode : isValid(datum.CustodianDisplayName) ? datum.CustodianDisplayName : isValid(datum.EFileName) ? datum.EFileName : '(Unspecified)'"
+        },
+        {
+          "type": "formula", "as": "Level2Source",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList') ? 'EngagementCodeList' : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode') ? 'AlphaCode' : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName') ? 'CustodianDisplayName' : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName') ? 'EFileName' : ''"
+        },
+        {
+          "type": "formula", "as": "Level2",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName') ? datum.EFileName : 'All'"
+        },
+        {
+          "type": "formula", "as": "Level3",
+          "expr": "(isValid(datum.EngagementCodeList) && datum.Level1Source !== 'EngagementCodeList' && datum.Level2Source !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.Level1Source !== 'AlphaCode' && datum.Level2Source !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.Level1Source !== 'CustodianDisplayName' && datum.Level2Source !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.Level1Source !== 'EFileName' && datum.Level2Source !== 'EFileName') ? datum.EFileName : 'All'"
+        },
+        { "type": "formula", "as": "NodeMetric", "expr": "datum['Measure A']" },
+        {
+          "type": "formula", "as": "NodeMetricHighlight",
+          "expr": "isValid(datum['Measure A__highlight']) ? datum['Measure A__highlight'] : datum['Measure A']"
+        },
+        { "type": "formula", "as": "EdgeWeight", "expr": "datum['Measure B']" },
+        { "type": "formula", "as": "Level1FillOverride", "expr": "datum.Level1ColorOverrideFill" },
+        { "type": "formula", "as": "Level1StrokeOverride", "expr": "datum.Level1ColorOverrideBorder" },
+        { "type": "formula", "as": "Level2FillOverride", "expr": "datum.Level2ColorOverrideFill" },
+        { "type": "formula", "as": "Level2StrokeOverride", "expr": "datum.Level2ColorOverrideBorder" },
+        { "type": "formula", "as": "Level3FillOverride", "expr": "datum.Level3ColorOverrideFill" },
+        { "type": "formula", "as": "Level3StrokeOverride", "expr": "datum.Level3ColorOverrideBorder" },
+        { "type": "formula", "as": "L1Id", "expr": "'L1:' + datum.Level1" },
+        { "type": "formula", "as": "L2Id", "expr": "datum.L1Id + '|L2:' + datum.Level2" },
+        { "type": "formula", "as": "L3Id", "expr": "datum.L2Id + '|L3:' + datum.Level3" }
+      ]
+    },
+
+    {
+      "name": "level1Nodes", "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L1Id"],
+          "fields": ["NodeMetric", "NodeMetricHighlight", "EdgeWeight", "Level1FillOverride", "Level1StrokeOverride", "Level1"],
+          "ops": ["sum", "sum", "sum", "min", "min", "min"],
+          "as": ["NodeValue", "NodeHighlightValue", "EdgeWeightValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L1Id" },
+        { "type": "formula", "as": "ParentId", "expr": "'root'" },
+        { "type": "formula", "as": "LevelIndex", "expr": "1" },
+        { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
+      ]
+    },
+    {
+      "name": "level2Nodes", "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L2Id", "L1Id"],
+          "fields": ["NodeMetric", "NodeMetricHighlight", "EdgeWeight", "Level2FillOverride", "Level2StrokeOverride", "Level2"],
+          "ops": ["sum", "sum", "sum", "min", "min", "min"],
+          "as": ["NodeValue", "NodeHighlightValue", "EdgeWeightValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L2Id" },
+        { "type": "formula", "as": "ParentId", "expr": "datum.L1Id" },
+        { "type": "formula", "as": "LevelIndex", "expr": "2" },
+        { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
+      ]
+    },
+    {
+      "name": "leafNodes", "source": "mapped",
+      "transform": [
+        {
+          "type": "aggregate", "groupby": ["L3Id", "L2Id"],
+          "fields": ["NodeMetric", "NodeMetricHighlight", "EdgeWeight", "Level3FillOverride", "Level3StrokeOverride", "Level3"],
+          "ops": ["sum", "sum", "sum", "min", "min", "min"],
+          "as": ["NodeValue", "NodeHighlightValue", "EdgeWeightValue", "FillOverride", "StrokeOverride", "Name"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.L3Id" },
+        { "type": "formula", "as": "ParentId", "expr": "datum.L2Id" },
+        { "type": "formula", "as": "LevelIndex", "expr": "3" },
+        { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
+      ]
+    },
+    {
+      "name": "rootNode",
+      "values": [
+        { "Id": "root", "ParentId": null, "LevelIndex": 0, "NodeValue": null,
+          "NodeHighlightValue": null, "EdgeWeightValue": null,
+          "FillOverride": null, "StrokeOverride": null, "Name": "root", "SourceMode": "hierarchy" }
+      ]
+    },
+
+    {
+      "name": "hierarchyTree",
+      "source": ["rootNode", "level1Nodes", "level2Nodes", "leafNodes"],
+      "transform": [
+        { "type": "stratify", "key": "Id", "parentKey": "ParentId" },
+        {
+          "type": "tree", "method": "cluster",
+          "size": [{ "signal": "height - 120" }, { "signal": "width - 120" }],
+          "as": ["TreeBreadth", "TreeDepth", "TreeDepthIdx", "TreeChildren"]
+        }
+      ]
+    },
+
+    {
+      "name": "hierarchyEdges", "source": "hierarchyTree",
+      "transform": [
+        { "type": "treelinks" },
+        { "type": "filter", "expr": "datum.source.LevelIndex >= 1" },
+        { "type": "formula", "as": "source", "expr": "datum.source.Id" },
+        { "type": "formula", "as": "target", "expr": "datum.target.Id" },
+        { "type": "formula", "as": "Weight", "expr": "datum.target.EdgeWeightValue" },
+        { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
+      ]
+    },
+
+    {
+      "name": "edgelistEdges", "source": "dataset",
+      "transform": [
+        { "type": "formula", "as": "source", "expr": "'' + datum.Source" },
+        { "type": "formula", "as": "target", "expr": "'' + datum.Target" },
+        { "type": "formula", "as": "Weight", "expr": "datum['Measure B']" },
+        { "type": "filter", "expr": "isValid(datum.source) && isValid(datum.target) && datum.source !== datum.target && datum.source !== 'undefined' && datum.target !== 'undefined'" },
+        { "type": "formula", "as": "SourceMode", "expr": "'edgelist'" }
+      ]
+    },
+    {
+      "name": "edgelistNodesRaw", "source": "edgelistEdges",
+      "transform": [
+        { "type": "fold", "fields": ["source", "target"], "as": ["_role", "NodeId"] },
+        {
+          "type": "aggregate", "groupby": ["NodeId"],
+          "fields": ["Weight"],
+          "ops": ["sum"],
+          "as": ["NodeValue"]
+        },
+        { "type": "formula", "as": "Id", "expr": "datum.NodeId" },
+        { "type": "formula", "as": "Name", "expr": "datum.NodeId" },
+        { "type": "formula", "as": "LevelIndex", "expr": "0" },
+        { "type": "formula", "as": "NodeHighlightValue", "expr": "datum.NodeValue" },
+        { "type": "formula", "as": "EdgeWeightValue", "expr": "null" },
+        { "type": "formula", "as": "FillOverride", "expr": "null" },
+        { "type": "formula", "as": "StrokeOverride", "expr": "null" },
+        { "type": "formula", "as": "ParentId", "expr": "null" },
+        { "type": "formula", "as": "SourceMode", "expr": "'edgelist'" }
+      ]
+    },
+
+    {
+      "name": "networkEdges",
+      "source": ["hierarchyEdges", "edgelistEdges"],
+      "transform": [
+        { "type": "filter", "expr": "datum.SourceMode === dataMode" },
+        { "type": "formula", "as": "PairKey",
+          "expr": "datum.source < datum.target ? datum.source + '||' + datum.target : datum.target + '||' + datum.source" },
+        {
+          "type": "window", "groupby": ["PairKey"],
+          "ops": ["row_number", "count"],
+          "as": ["PairIndex", "PairCount"]
+        },
+        { "type": "formula", "as": "CurveOffset",
+          "expr": "datum.PairCount > 1 ? (datum.PairIndex - (datum.PairCount + 1) / 2) * 20 : 0" }
+      ]
+    },
+
+    {
+      "name": "preNodes",
+      "source": ["level1Nodes", "level2Nodes", "leafNodes", "edgelistNodesRaw"],
+      "transform": [
+        { "type": "filter", "expr": "datum.SourceMode === dataMode" }
+      ]
+    },
+
+    {
+      "name": "degreeSource", "source": "networkEdges",
+      "transform": [
+        { "type": "aggregate", "groupby": ["source"], "ops": ["count"], "as": ["DegreeOut"] },
+        { "type": "formula", "as": "Id", "expr": "datum.source" }
+      ]
+    },
+    {
+      "name": "degreeTarget", "source": "networkEdges",
+      "transform": [
+        { "type": "aggregate", "groupby": ["target"], "ops": ["count"], "as": ["DegreeIn"] },
+        { "type": "formula", "as": "Id", "expr": "datum.target" }
+      ]
+    },
+
+    {
+      "name": "networkNodes", "source": "preNodes",
+      "transform": [
+        { "type": "lookup", "from": "degreeSource", "key": "Id", "fields": ["Id"], "values": ["DegreeOut"], "default": 0 },
+        { "type": "lookup", "from": "degreeTarget", "key": "Id", "fields": ["Id"], "values": ["DegreeIn"], "default": 0 },
+        { "type": "formula", "as": "Degree", "expr": "(datum.DegreeOut || 0) + (datum.DegreeIn || 0)" },
+
+        { "type": "lookup", "from": "hierarchyTree", "key": "Id", "fields": ["Id"],
+          "values": ["TreeBreadth", "TreeDepth"] },
+
+        { "type": "window", "ops": ["row_number", "count"], "as": ["NodeIndex", "NodeCount"] },
+
+        { "type": "formula", "as": "CircularAngle",
+          "expr": "2 * PI * (datum.NodeIndex - 1) / datum.NodeCount" },
+        { "type": "formula", "as": "GridCols",
+          "expr": "max(1, ceil(sqrt(datum.NodeCount)))" },
+        { "type": "formula", "as": "GridCellW",
+          "expr": "(width - 120) / datum.GridCols" },
+        { "type": "formula", "as": "GridCellH",
+          "expr": "(height - 120) / max(1, ceil(datum.NodeCount / datum.GridCols))" },
+
+        { "type": "formula", "as": "TargetX",
+          "expr": "effectiveLayout === 'circular' ? centerX + layoutRadius * cos(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : effectiveLayout === 'hierarchical' && isValid(datum.TreeDepth) ? datum.TreeDepth + 60 : centerX" },
+        { "type": "formula", "as": "TargetY",
+          "expr": "effectiveLayout === 'circular' ? centerY + layoutRadius * sin(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : effectiveLayout === 'hierarchical' && isValid(datum.TreeBreadth) ? datum.TreeBreadth + 60 : centerY" },
+
+        { "type": "formula", "as": "IsHighlighted", "expr": "datum.NodeHighlightValue > 0" },
+
+        { "type": "formula", "as": "DefaultFillColor",
+          "expr": "dataMode === 'hierarchy' ? (datum.LevelIndex === 1 ? level1DefaultFillColor : datum.LevelIndex === 2 ? level2DefaultFillColor : level3DefaultFillColor) : nodeDefaultFillColor" },
+        { "type": "formula", "as": "DefaultStrokeColor",
+          "expr": "dataMode === 'hierarchy' ? (datum.LevelIndex === 1 ? level1DefaultStrokeColor : datum.LevelIndex === 2 ? level2DefaultStrokeColor : level3DefaultStrokeColor) : nodeDefaultStrokeColor" },
+        { "type": "formula", "as": "FillColor",
+          "expr": "isValid(datum.FillOverride) ? datum.FillOverride : datum.DefaultFillColor" },
+        { "type": "formula", "as": "StrokeColor",
+          "expr": "isValid(datum.StrokeOverride) ? datum.StrokeOverride : datum.DefaultStrokeColor" },
+
+        {
+          "type": "force",
+          "iterations": 300,
+          "restart": { "signal": "restart" },
+          "static": { "signal": "!restart" },
+          "forces": [
+            { "force": "center", "x": { "signal": "centerX" }, "y": { "signal": "centerY" } },
+            { "force": "collide", "radius": { "signal": "nodeRadius + 2" } },
+            { "force": "nbody", "strength": { "signal": "effectiveNbodyStrength" } },
+            { "force": "link", "links": "networkEdges", "id": "datum.Id",
+              "distance": { "signal": "linkDistance" },
+              "strength": { "signal": "effectiveLinkStrength" } },
+            { "force": "x", "x": "TargetX", "strength": { "signal": "effectivePositionStrength" } },
+            { "force": "y", "y": "TargetY", "strength": { "signal": "effectivePositionStrength" } }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "renderedEdges", "source": "networkEdges",
+      "transform": [
+        { "type": "lookup", "from": "networkNodes", "key": "Id",
+          "fields": ["source"], "values": ["x", "y", "Name"], "as": ["sx", "sy", "SourceName"] },
+        { "type": "lookup", "from": "networkNodes", "key": "Id",
+          "fields": ["target"], "values": ["x", "y", "Name"], "as": ["tx", "ty", "TargetName"] },
+        { "type": "filter", "expr": "isValid(datum.sx) && isValid(datum.tx)" },
+
+        { "type": "formula", "as": "dx", "expr": "datum.tx - datum.sx" },
+        { "type": "formula", "as": "dy", "expr": "datum.ty - datum.sy" },
+        { "type": "formula", "as": "EdgeLen", "expr": "sqrt(datum.dx * datum.dx + datum.dy * datum.dy)" },
+
+        { "type": "formula", "as": "perpX", "expr": "datum.EdgeLen > 0 ? -datum.dy / datum.EdgeLen : 0" },
+        { "type": "formula", "as": "perpY", "expr": "datum.EdgeLen > 0 ? datum.dx / datum.EdgeLen : 0" },
+
+        { "type": "formula", "as": "EffOffset",
+          "expr": "(edgeStyle === 'curved' ? edgeCurveOffset : 0) + datum.CurveOffset" },
+
+        { "type": "formula", "as": "cx",
+          "expr": "(datum.sx + datum.tx) / 2 + datum.EffOffset * datum.perpX" },
+        { "type": "formula", "as": "cy",
+          "expr": "(datum.sy + datum.ty) / 2 + datum.EffOffset * datum.perpY" },
+
+        { "type": "formula", "as": "EdgePath",
+          "expr": "datum.EffOffset !== 0 ? 'M' + datum.sx + ',' + datum.sy + 'Q' + datum.cx + ',' + datum.cy + ',' + datum.tx + ',' + datum.ty : 'M' + datum.sx + ',' + datum.sy + 'L' + datum.tx + ',' + datum.ty" },
+
+        { "type": "formula", "as": "ArrowDx",
+          "expr": "datum.EffOffset !== 0 ? datum.tx - datum.cx : datum.dx" },
+        { "type": "formula", "as": "ArrowDy",
+          "expr": "datum.EffOffset !== 0 ? datum.ty - datum.cy : datum.dy" },
+        { "type": "formula", "as": "ArrowLen",
+          "expr": "sqrt(datum.ArrowDx * datum.ArrowDx + datum.ArrowDy * datum.ArrowDy)" },
+        { "type": "formula", "as": "ArrowAngleRad",
+          "expr": "atan2(datum.ArrowDy, datum.ArrowDx)" },
+
+        { "type": "formula", "as": "ArrowTipX",
+          "expr": "datum.ArrowLen > 0 ? datum.tx - (datum.ArrowDx / datum.ArrowLen) * (nodeRadius + strokeWidth) : datum.tx" },
+        { "type": "formula", "as": "ArrowTipY",
+          "expr": "datum.ArrowLen > 0 ? datum.ty - (datum.ArrowDy / datum.ArrowLen) * (nodeRadius + strokeWidth) : datum.ty" },
+        { "type": "formula", "as": "Arrow1X",
+          "expr": "datum.ArrowTipX - arrowLength * cos(datum.ArrowAngleRad - arrowAngle)" },
+        { "type": "formula", "as": "Arrow1Y",
+          "expr": "datum.ArrowTipY - arrowLength * sin(datum.ArrowAngleRad - arrowAngle)" },
+        { "type": "formula", "as": "Arrow2X",
+          "expr": "datum.ArrowTipX - arrowLength * cos(datum.ArrowAngleRad + arrowAngle)" },
+        { "type": "formula", "as": "Arrow2Y",
+          "expr": "datum.ArrowTipY - arrowLength * sin(datum.ArrowAngleRad + arrowAngle)" },
+        { "type": "formula", "as": "ArrowPath",
+          "expr": "'M' + datum.Arrow1X + ',' + datum.Arrow1Y + 'L' + datum.ArrowTipX + ',' + datum.ArrowTipY + 'L' + datum.Arrow2X + ',' + datum.Arrow2Y" },
+
+        { "type": "formula", "as": "EdgeInSelection",
+          "expr": "!networkSelect ? true : datum.source === networkSelect || datum.target === networkSelect" }
+      ]
+    },
+
+    {
+      "name": "selectedNeighbors", "source": "networkEdges",
+      "transform": [
+        { "type": "filter", "expr": "networkSelect && (datum.source === networkSelect || datum.target === networkSelect)" },
+        { "type": "formula", "as": "NeighborId",
+          "expr": "datum.source === networkSelect ? datum.target : datum.source" }
+      ]
+    },
+
+    {
+      "name": "hoverNeighbors", "source": "networkEdges",
+      "transform": [
+        { "type": "filter", "expr": "hoverNode && (datum.source === hoverNode || datum.target === hoverNode)" },
+        { "type": "formula", "as": "NeighborId",
+          "expr": "datum.source === hoverNode ? datum.target : datum.source" }
+      ]
+    },
+
+    {
+      "name": "visibleLabels", "source": "networkNodes",
+      "transform": [
+        { "type": "filter",
+          "expr": "labelMode === 'show' ? datum.Degree >= labelMinDegree : labelMode === 'hover' ? (datum.Id === hoverNode || indata('hoverNeighbors', 'NeighborId', datum.Id)) : false" }
+      ]
+    }
+  ],
+
+  "scales": [
+    {
+      "name": "nodeSizeScale", "type": "sqrt",
+      "domain": { "data": "networkNodes", "field": "NodeValue" },
+      "range": [{ "signal": "4 * nodeSizeMin * nodeSizeMin" }, { "signal": "4 * nodeSizeMax * nodeSizeMax" }],
+      "zero": true
+    },
+    {
+      "name": "degreeScale", "type": "sqrt",
+      "domain": { "data": "networkNodes", "field": "Degree" },
+      "range": [{ "signal": "4 * nodeSizeMin * nodeSizeMin" }, { "signal": "4 * nodeSizeMax * nodeSizeMax" }],
+      "zero": true
+    },
+    {
+      "name": "edgeWidthScale", "type": "linear",
+      "domain": { "data": "renderedEdges", "field": "Weight" },
+      "range": [{ "signal": "edgeWidthMin" }, { "signal": "edgeWidthMax" }],
+      "zero": true
+    },
+    {
+      "name": "edgeOpacityScale", "type": "linear",
+      "domain": { "data": "renderedEdges", "field": "Weight" },
+      "range": [{ "signal": "edgeOpacityMin" }, { "signal": "edgeOpacityMax" }],
+      "zero": true
+    },
+    {
+      "name": "edgeColorScale", "type": "linear",
+      "domain": { "data": "renderedEdges", "field": "Weight" },
+      "range": [{ "signal": "edgeWeightColorLow" }, { "signal": "edgeWeightColorHigh" }],
+      "interpolate": "rgb"
+    }
+  ],
+
+  "marks": [
+    {
+      "name": "edgeMark", "type": "path",
+      "from": { "data": "renderedEdges" },
+      "encode": {
+        "update": {
+          "path": { "field": "EdgePath" },
+          "stroke": [
+            { "test": "edgeWeightColor && isValid(datum.Weight) && datum.Weight > 0",
+              "scale": "edgeColorScale", "field": "Weight" },
+            { "signal": "edgeStrokeColor" }
+          ],
+          "strokeWidth": [
+            { "test": "edgeWeightThickness && isValid(datum.Weight) && datum.Weight > 0",
+              "scale": "edgeWidthScale", "field": "Weight" },
+            { "signal": "edgeStrokeWidth" }
+          ],
+          "strokeOpacity": [
+            { "test": "edgeWeightOpacity && isValid(datum.Weight) && datum.Weight > 0",
+              "scale": "edgeOpacityScale", "field": "Weight" },
+            { "test": "!networkSelect", "value": 0.6 },
+            { "test": "datum.EdgeInSelection", "value": 0.6 },
+            { "value": 0.15 }
+          ],
+          "fill": { "value": "none" },
+          "tooltip": {
+            "signal": "{'From': datum.SourceName, 'To': datum.TargetName, 'Weight': isValid(datum.Weight) ? format(datum.Weight, '~s') : '–'}"
+          }
+        }
+      }
+    },
+    {
+      "name": "arrowMark", "type": "path",
+      "from": { "data": "renderedEdges" },
+      "encode": {
+        "update": {
+          "path": { "field": "ArrowPath" },
+          "stroke": { "signal": "edgeStrokeColor" },
+          "strokeWidth": { "value": 1.5 },
+          "fill": { "value": "none" },
+          "strokeOpacity": [
+            { "test": "!directed", "value": 0 },
+            { "test": "!networkSelect", "value": 0.6 },
+            { "test": "datum.EdgeInSelection", "value": 0.6 },
+            { "value": 0.15 }
+          ]
+        }
+      }
+    },
+    {
+      "name": "nodeMark", "type": "symbol",
+      "from": { "data": "networkNodes" },
+      "zindex": 1,
+      "on": [
+        { "trigger": "fix", "modify": "dragNode",
+          "values": "fix === true ? {fx: dragNode.x, fy: dragNode.y} : {fx: fix[0], fy: fix[1]}" },
+        { "trigger": "!fix", "modify": "dragNode",
+          "values": "{fx: null, fy: null}" }
+      ],
+      "encode": {
+        "update": {
+          "x": { "field": "x" },
+          "y": { "field": "y" },
+          "shape": { "value": "circle" },
+          "size": [
+            { "test": "nodeSizeMode === 'metric' && isValid(datum.NodeValue) && datum.NodeValue > 0",
+              "scale": "nodeSizeScale", "field": "NodeValue" },
+            { "test": "nodeSizeMode === 'degree' && datum.Degree > 0",
+              "scale": "degreeScale", "field": "Degree" },
+            { "signal": "4 * nodeRadius * nodeRadius" }
+          ],
+          "fill": { "field": "FillColor" },
+          "stroke": { "field": "StrokeColor" },
+          "strokeWidth": { "signal": "strokeWidth" },
+          "fillOpacity": [
+            { "test": "!datum.IsHighlighted", "value": 0.25 },
+            { "test": "!networkSelect", "value": 1 },
+            { "test": "datum.Id === networkSelect || indata('selectedNeighbors', 'NeighborId', datum.Id)",
+              "value": 1 },
+            { "value": 0.25 }
+          ],
+          "cursor": { "value": "pointer" },
+          "tooltip": {
+            "signal": "{'Name': datum.Name, 'Level': dataMode === 'hierarchy' ? (datum.LevelIndex === 1 ? 'Level 1' : datum.LevelIndex === 2 ? 'Level 2' : 'Level 3') : '', 'Value': isValid(datum.NodeValue) ? format(datum.NodeValue, '~s') : '–', 'Connections': datum.Degree}"
+          }
+        }
+      }
+    },
+    {
+      "name": "labelMark", "type": "text",
+      "interactive": false,
+      "from": { "data": "visibleLabels" },
+      "encode": {
+        "update": {
+          "x": { "field": "x" },
+          "y": { "field": "y" },
+          "dy": { "signal": "-(nodeRadius + 4)" },
+          "text": { "field": "Name" },
+          "align": { "value": "center" },
+          "baseline": { "value": "bottom" },
+          "font": { "signal": "labelFontFamily" },
+          "fontSize": { "signal": "labelFontSizePx" },
+          "fill": { "signal": "dataMode === 'hierarchy' && datum.LevelIndex === 1 ? labelColor : labelSubtitleColor" }
+        }
+      }
+    }
+  ]
+}
