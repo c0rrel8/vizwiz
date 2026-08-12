@@ -15,6 +15,7 @@ All work is on `main`. No sync blockers — GitHub push works.
 | `circlepacking/` | Raw Vega | Confirmed live | Nested circles, 3-level hierarchy |
 | `sunburst/` | Raw Vega | Confirmed live | Concentric arc rings, 3-level hierarchy |
 | `dendrogram/` | Raw Vega | Confirmed live | Tree diagram, 3-level hierarchy |
+| `composition/` | Vega-Lite | New — local render verified | Parameterized bar/column, stacked/clustered composition chart |
 | `network/` | Raw Vega | **Dead end** | Force transform incompatible with Deneb — see `network/NATIVE_HANDOFF.md` |
 
 ### Network diagram — key finding

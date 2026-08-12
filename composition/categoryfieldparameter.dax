@@ -1,0 +1,13 @@
+MappedParameter = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// Level 1 field parameter (Category). Same table used by aster and
+// waffle -- defined once in the model, referenced here for
+// documentation. Bind to the Deneb visual's Category role.
+//
+// The composition chart's field-mapping adapter resolves this via an
+// isValid() cascade over all 4 candidates. See composition.vl.json
+// transforms and patterns.md for the full mechanism.

@@ -1,0 +1,15 @@
+MappedParameterTwo = {
+    ("EngagementCodeList", NAMEOF ( 'Project_snapshot_Fact'[EngagementCodeList] ), 0),
+    ("AlphaCode", NAMEOF ( 'Project_snapshot_Fact'[AlphaCode] ), 1),
+    ("CustodianDisplayName", NAMEOF ( 'Project_snapshot_Fact'[CustodianDisplayName] ), 2),
+    ("EFileName", NAMEOF ( 'Project_snapshot_Fact'[EFileName] ), 3)
+}
+// Level 2 field parameter (SubCategory). Same table used by waffle --
+// defined once in the model, referenced here for documentation.
+// Bind to the Deneb visual's SubCategory role.
+//
+// Uses the exclusion cascade pattern: the spec's field-mapping
+// adapter resolves Category first (from MappedParameter), then
+// SubCategory from this table's candidates while excluding whichever
+// column Category already claimed. See composition.vl.json transforms
+// and patterns.md for the full mechanism.

@@ -1,0 +1,25 @@
+Composition Fixed Color Fill =
+SWITCH (
+    MAX ( 'MappedParameterTwo'[Category2] ),
+    "EngagementCodeList", "#4555D6",
+    "AlphaCode", "#8C97E8",
+    "CustodianDisplayName", "#2D3B68",
+    "EFileName", "#6B7CFF",
+    "#4555D6"
+)
+// Bind to the ColorOverrideFill field in Deneb. Gives each distinct
+// column that MappedParameterTwo can resolve to its own pinned color,
+// drawn from the design system's level fill palette.
+//
+// This assigns one color per COLUMN NAME (whichever candidate the
+// field parameter is sliced to), not per distinct value within that
+// column. For per-value colors (e.g. a unique color per
+// EngagementCodeList value), you need a rank-based measure -- see
+// HANDOFF.md's open item on O(N^2) RANKX performance at high
+// cardinality.
+//
+// Uses MAX, not SELECTEDVALUE -- MappedParameterTwo's columns are
+// linked into a composite key ("Group By Columns"), and
+// SELECTEDVALUE throws "part of composite key" (same confirmed
+// finding as MappedParameter). See waffle/categoryfixedcolor.dax
+// for the original pattern.

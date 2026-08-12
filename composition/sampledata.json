@@ -1,0 +1,11 @@
+[
+  { "EngagementCodeList": "Alpha", "AlphaCode": "Type-A", "Measure A": 100 },
+  { "EngagementCodeList": "Alpha", "AlphaCode": "Type-B", "Measure A": 150 },
+  { "EngagementCodeList": "Alpha", "AlphaCode": "Type-C", "Measure A": 80 },
+  { "EngagementCodeList": "Beta", "AlphaCode": "Type-A", "Measure A": 200 },
+  { "EngagementCodeList": "Beta", "AlphaCode": "Type-B", "Measure A": 120 },
+  { "EngagementCodeList": "Beta", "AlphaCode": "Type-C", "Measure A": 90 },
+  { "EngagementCodeList": "Gamma", "AlphaCode": "Type-A", "Measure A": 160 },
+  { "EngagementCodeList": "Gamma", "AlphaCode": "Type-B", "Measure A": 140 },
+  { "EngagementCodeList": "Gamma", "AlphaCode": "Type-C", "Measure A": 110 }
+]

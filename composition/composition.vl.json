@@ -1,0 +1,497 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Composition chart — parameterized bar/column with stacked/clustered modes. Vega-Lite engine. Set chartMode ('column'/'bar') and groupMode ('stacked'/'clustered') to switch arrangements.",
+  "width": "container",
+  "height": "container",
+  "autosize": { "type": "fit", "contains": "padding" },
+  "background": { "expr": "backgroundColor" },
+  "padding": 10,
+
+  "params": [
+    { "name": "chartMode", "value": "column" },
+    { "name": "groupMode", "value": "stacked" },
+
+    { "name": "backgroundColor", "value": "#182231" },
+
+    { "name": "barCornerRadius", "value": 2 },
+    { "name": "barStrokeColor", "value": "#182231" },
+    { "name": "barStrokeWidth", "value": 0.5 },
+    { "name": "fillColorDefault", "value": "#4555D6" },
+    { "name": "barPadding", "value": 0.2 },
+    { "name": "clusterPadding", "value": 0.1 },
+
+    { "name": "showDataLabels", "value": false },
+    { "name": "dataLabelFontSize", "value": 10 },
+    { "name": "dataLabelFontSizePx", "expr": "dataLabelFontSize * 4 / 3" },
+    { "name": "dataLabelColor", "value": "#FCFCFD" },
+    { "name": "dataLabelFormat", "value": "~s" },
+    { "name": "showLabelPercent", "value": false },
+
+    { "name": "axisFontFamily", "value": "Segoe UI" },
+    { "name": "axisLabelColor", "value": "#A5B4CB" },
+    { "name": "axisLabelFontSize", "value": 10 },
+    { "name": "axisLabelFontSizePx", "expr": "axisLabelFontSize * 4 / 3" },
+    { "name": "axisTitleColor", "value": "#A5B4CB" },
+    { "name": "axisTitleFontSize", "value": 11 },
+    { "name": "axisTitleFontSizePx", "expr": "axisTitleFontSize * 4 / 3" },
+    { "name": "categoryAxisTitle", "value": "" },
+    { "name": "valueAxisTitle", "value": "" },
+    { "name": "valueFormat", "value": "~s" },
+    { "name": "showGrid", "value": true },
+    { "name": "gridColor", "value": "#2D3B68" },
+    { "name": "gridOpacity", "value": 0.5 },
+
+    { "name": "showLegend", "value": true },
+    { "name": "legendOrient", "value": "right" },
+    { "name": "legendOrientEff", "expr": "showLegend ? legendOrient : 'none'" },
+    { "name": "legendLabelColor", "value": "#A5B4CB" },
+    { "name": "legendTitleColor", "value": "#A5B4CB" },
+    { "name": "legendFontSize", "value": 10 },
+    { "name": "legendFontSizePx", "expr": "legendFontSize * 4 / 3" },
+    { "name": "legendTitle", "value": "" }
+  ],
+
+  "transform": [
+    {
+      "calculate": "isValid(datum.EngagementCodeList) ? 'EngagementCodeList' : isValid(datum.AlphaCode) ? 'AlphaCode' : isValid(datum.CustodianDisplayName) ? 'CustodianDisplayName' : isValid(datum.EFileName) ? 'EFileName' : ''",
+      "as": "CategorySource"
+    },
+    {
+      "calculate": "isValid(datum.EngagementCodeList) ? datum.EngagementCodeList : isValid(datum.AlphaCode) ? datum.AlphaCode : isValid(datum.CustodianDisplayName) ? datum.CustodianDisplayName : isValid(datum.EFileName) ? datum.EFileName : '(Unspecified)'",
+      "as": "Category"
+    },
+    {
+      "calculate": "(isValid(datum.EngagementCodeList) && datum.CategorySource !== 'EngagementCodeList') ? datum.EngagementCodeList : (isValid(datum.AlphaCode) && datum.CategorySource !== 'AlphaCode') ? datum.AlphaCode : (isValid(datum.CustodianDisplayName) && datum.CategorySource !== 'CustodianDisplayName') ? datum.CustodianDisplayName : (isValid(datum.EFileName) && datum.CategorySource !== 'EFileName') ? datum.EFileName : null",
+      "as": "SubCategoryRaw"
+    },
+    {
+      "calculate": "isValid(datum.SubCategoryRaw) ? datum.SubCategoryRaw : datum.Category",
+      "as": "SubCategory"
+    },
+    {
+      "window": [{ "op": "dense_rank", "as": "SubCategoryRank" }],
+      "sort": [{ "field": "SubCategory", "order": "ascending" }],
+      "groupby": []
+    },
+    { "calculate": "datum['Measure A']", "as": "MetricA" },
+    { "calculate": "datum.ColorOverrideFill", "as": "ColorOverride" },
+
+    {
+      "joinaggregate": [{ "op": "sum", "field": "MetricA", "as": "GrandTotal" }]
+    },
+    {
+      "joinaggregate": [{ "op": "sum", "field": "MetricA", "as": "CategoryTotal" }],
+      "groupby": ["Category"]
+    },
+
+    {
+      "calculate": "isValid(datum.ColorOverride) ? datum.ColorOverride : ['#4555D6','#8C97E8','#2D3B68','#6B7CFF','#B3BBF0','#3A4A90'][(datum.SubCategoryRank - 1) % 6]",
+      "as": "FillColor"
+    },
+    {
+      "calculate": "datum.GrandTotal > 0 ? datum.MetricA / datum.GrandTotal : 0",
+      "as": "PercentOfTotal"
+    },
+    {
+      "calculate": "format(datum.MetricA, valueFormat)",
+      "as": "MetricAFormatted"
+    },
+    {
+      "calculate": "format(datum.PercentOfTotal, '.0%')",
+      "as": "PercentFormatted"
+    },
+    {
+      "calculate": "showLabelPercent ? format(datum.PercentOfTotal, '.0%') : format(datum.MetricA, dataLabelFormat)",
+      "as": "DataLabelText"
+    }
+  ],
+
+  "layer": [
+    {
+      "transform": [{ "filter": "chartMode === 'column'" }],
+      "layer": [
+        {
+          "transform": [{ "filter": "groupMode === 'stacked'" }],
+          "params": [
+            { "name": "barSelect", "select": { "type": "point", "fields": ["Category"] } }
+          ],
+          "mark": {
+            "type": "bar",
+            "stroke": { "expr": "barStrokeColor" },
+            "strokeWidth": { "expr": "barStrokeWidth" }
+          },
+          "encoding": {
+            "x": {
+              "field": "Category",
+              "type": "nominal",
+              "scale": { "paddingInner": { "expr": "barPadding" } },
+              "axis": {
+                "title": { "expr": "categoryAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" }
+              }
+            },
+            "y": {
+              "field": "MetricA",
+              "type": "quantitative",
+              "stack": "zero",
+              "axis": {
+                "title": { "expr": "valueAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "format": { "expr": "valueFormat" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" },
+                "grid": { "expr": "showGrid" },
+                "gridColor": { "expr": "gridColor" },
+                "gridOpacity": { "expr": "gridOpacity" }
+              }
+            },
+            "fill": {
+              "field": "SubCategory",
+              "type": "nominal",
+              "scale": { "range": { "field": "FillColor" } },
+              "legend": {
+                "title": { "expr": "legendTitle" },
+                "orient": { "expr": "legendOrientEff" },
+                "labelColor": { "expr": "legendLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "showLegend ? legendFontSizePx : 0" },
+                "titleColor": { "expr": "legendTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "showLegend ? legendFontSizePx : 0" },
+                "symbolSize": { "expr": "showLegend ? 100 : 0" },
+                "symbolOpacity": { "expr": "showLegend ? 1 : 0" }
+              }
+            },
+            "fillOpacity": {
+              "condition": { "param": "barSelect", "empty": true, "value": 1 },
+              "value": 0.25
+            },
+            "tooltip": [
+              { "field": "Category", "type": "nominal", "title": "Category" },
+              { "field": "SubCategory", "type": "nominal", "title": "Subcategory" },
+              { "field": "MetricAFormatted", "type": "nominal", "title": "Value" },
+              { "field": "PercentFormatted", "type": "nominal", "title": "% of Total" }
+            ]
+          }
+        },
+
+        {
+          "transform": [{ "filter": "groupMode === 'clustered'" }],
+          "mark": {
+            "type": "bar",
+            "cornerRadiusTopLeft": { "expr": "barCornerRadius" },
+            "cornerRadiusTopRight": { "expr": "barCornerRadius" },
+            "stroke": { "expr": "barStrokeColor" },
+            "strokeWidth": { "expr": "barStrokeWidth" }
+          },
+          "encoding": {
+            "x": {
+              "field": "Category",
+              "type": "nominal",
+              "scale": { "paddingInner": { "expr": "barPadding" } },
+              "axis": {
+                "title": { "expr": "categoryAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" }
+              }
+            },
+            "y": {
+              "field": "MetricA",
+              "type": "quantitative",
+              "stack": false,
+              "axis": {
+                "title": { "expr": "valueAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "format": { "expr": "valueFormat" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" },
+                "grid": { "expr": "showGrid" },
+                "gridColor": { "expr": "gridColor" },
+                "gridOpacity": { "expr": "gridOpacity" }
+              }
+            },
+            "xOffset": {
+              "field": "SubCategory",
+              "type": "nominal",
+              "scale": { "paddingInner": { "expr": "clusterPadding" } }
+            },
+            "fill": {
+              "field": "FillColor",
+              "type": "nominal",
+              "scale": null
+            },
+            "fillOpacity": {
+              "condition": { "param": "barSelect", "empty": true, "value": 1 },
+              "value": 0.25
+            },
+            "tooltip": [
+              { "field": "Category", "type": "nominal", "title": "Category" },
+              { "field": "SubCategory", "type": "nominal", "title": "Subcategory" },
+              { "field": "MetricAFormatted", "type": "nominal", "title": "Value" },
+              { "field": "PercentFormatted", "type": "nominal", "title": "% of Total" }
+            ]
+          }
+        },
+
+        {
+          "transform": [
+            { "filter": "groupMode === 'stacked' && showDataLabels" },
+            {
+              "aggregate": [
+                { "op": "sum", "field": "MetricA", "as": "StackTotal" },
+                { "op": "max", "field": "GrandTotal", "as": "GrandTotal" }
+              ],
+              "groupby": ["Category"]
+            },
+            {
+              "calculate": "showLabelPercent ? format(datum.StackTotal / datum.GrandTotal, '.0%') : format(datum.StackTotal, dataLabelFormat)",
+              "as": "StackLabelText"
+            }
+          ],
+          "mark": {
+            "type": "text",
+            "baseline": "bottom",
+            "dy": -4,
+            "font": { "expr": "axisFontFamily" },
+            "fontSize": { "expr": "dataLabelFontSizePx" },
+            "color": { "expr": "dataLabelColor" }
+          },
+          "encoding": {
+            "x": { "field": "Category", "type": "nominal", "axis": null },
+            "y": { "field": "StackTotal", "type": "quantitative", "axis": null },
+            "text": { "field": "StackLabelText", "type": "nominal" }
+          }
+        },
+
+        {
+          "transform": [{ "filter": "groupMode === 'clustered' && showDataLabels" }],
+          "mark": {
+            "type": "text",
+            "baseline": "bottom",
+            "dy": -4,
+            "font": { "expr": "axisFontFamily" },
+            "fontSize": { "expr": "dataLabelFontSizePx" },
+            "color": { "expr": "dataLabelColor" }
+          },
+          "encoding": {
+            "x": { "field": "Category", "type": "nominal", "axis": null },
+            "xOffset": { "field": "SubCategory", "type": "nominal" },
+            "y": { "field": "MetricA", "type": "quantitative", "stack": false, "axis": null },
+            "text": { "field": "DataLabelText", "type": "nominal" }
+          }
+        }
+      ]
+    },
+
+    {
+      "transform": [{ "filter": "chartMode === 'bar'" }],
+      "layer": [
+        {
+          "transform": [{ "filter": "groupMode === 'stacked'" }],
+          "mark": {
+            "type": "bar",
+            "stroke": { "expr": "barStrokeColor" },
+            "strokeWidth": { "expr": "barStrokeWidth" }
+          },
+          "encoding": {
+            "y": {
+              "field": "Category",
+              "type": "nominal",
+              "scale": { "paddingInner": { "expr": "barPadding" } },
+              "axis": {
+                "title": { "expr": "categoryAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" }
+              }
+            },
+            "x": {
+              "field": "MetricA",
+              "type": "quantitative",
+              "stack": "zero",
+              "axis": {
+                "title": { "expr": "valueAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "format": { "expr": "valueFormat" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" },
+                "grid": { "expr": "showGrid" },
+                "gridColor": { "expr": "gridColor" },
+                "gridOpacity": { "expr": "gridOpacity" }
+              }
+            },
+            "fill": {
+              "field": "FillColor",
+              "type": "nominal",
+              "scale": null
+            },
+            "fillOpacity": {
+              "condition": { "param": "barSelect", "empty": true, "value": 1 },
+              "value": 0.25
+            },
+            "tooltip": [
+              { "field": "Category", "type": "nominal", "title": "Category" },
+              { "field": "SubCategory", "type": "nominal", "title": "Subcategory" },
+              { "field": "MetricAFormatted", "type": "nominal", "title": "Value" },
+              { "field": "PercentFormatted", "type": "nominal", "title": "% of Total" }
+            ]
+          }
+        },
+
+        {
+          "transform": [{ "filter": "groupMode === 'clustered'" }],
+          "mark": {
+            "type": "bar",
+            "cornerRadiusTopRight": { "expr": "barCornerRadius" },
+            "cornerRadiusBottomRight": { "expr": "barCornerRadius" },
+            "stroke": { "expr": "barStrokeColor" },
+            "strokeWidth": { "expr": "barStrokeWidth" }
+          },
+          "encoding": {
+            "y": {
+              "field": "Category",
+              "type": "nominal",
+              "scale": { "paddingInner": { "expr": "barPadding" } },
+              "axis": {
+                "title": { "expr": "categoryAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" }
+              }
+            },
+            "x": {
+              "field": "MetricA",
+              "type": "quantitative",
+              "stack": false,
+              "axis": {
+                "title": { "expr": "valueAxisTitle" },
+                "labelColor": { "expr": "axisLabelColor" },
+                "labelFont": { "expr": "axisFontFamily" },
+                "labelFontSize": { "expr": "axisLabelFontSizePx" },
+                "format": { "expr": "valueFormat" },
+                "titleColor": { "expr": "axisTitleColor" },
+                "titleFont": { "expr": "axisFontFamily" },
+                "titleFontSize": { "expr": "axisTitleFontSizePx" },
+                "domainColor": { "expr": "barStrokeColor" },
+                "tickColor": { "expr": "axisLabelColor" },
+                "grid": { "expr": "showGrid" },
+                "gridColor": { "expr": "gridColor" },
+                "gridOpacity": { "expr": "gridOpacity" }
+              }
+            },
+            "yOffset": {
+              "field": "SubCategory",
+              "type": "nominal",
+              "scale": { "paddingInner": { "expr": "clusterPadding" } }
+            },
+            "fill": {
+              "field": "FillColor",
+              "type": "nominal",
+              "scale": null
+            },
+            "fillOpacity": {
+              "condition": { "param": "barSelect", "empty": true, "value": 1 },
+              "value": 0.25
+            },
+            "tooltip": [
+              { "field": "Category", "type": "nominal", "title": "Category" },
+              { "field": "SubCategory", "type": "nominal", "title": "Subcategory" },
+              { "field": "MetricAFormatted", "type": "nominal", "title": "Value" },
+              { "field": "PercentFormatted", "type": "nominal", "title": "% of Total" }
+            ]
+          }
+        },
+
+        {
+          "transform": [
+            { "filter": "groupMode === 'stacked' && showDataLabels" },
+            {
+              "aggregate": [
+                { "op": "sum", "field": "MetricA", "as": "StackTotal" },
+                { "op": "max", "field": "GrandTotal", "as": "GrandTotal" }
+              ],
+              "groupby": ["Category"]
+            },
+            {
+              "calculate": "showLabelPercent ? format(datum.StackTotal / datum.GrandTotal, '.0%') : format(datum.StackTotal, dataLabelFormat)",
+              "as": "StackLabelText"
+            }
+          ],
+          "mark": {
+            "type": "text",
+            "align": "left",
+            "dx": 4,
+            "font": { "expr": "axisFontFamily" },
+            "fontSize": { "expr": "dataLabelFontSizePx" },
+            "color": { "expr": "dataLabelColor" }
+          },
+          "encoding": {
+            "y": { "field": "Category", "type": "nominal", "axis": null },
+            "x": { "field": "StackTotal", "type": "quantitative", "axis": null },
+            "text": { "field": "StackLabelText", "type": "nominal" }
+          }
+        },
+
+        {
+          "transform": [{ "filter": "groupMode === 'clustered' && showDataLabels" }],
+          "mark": {
+            "type": "text",
+            "align": "left",
+            "dx": 4,
+            "font": { "expr": "axisFontFamily" },
+            "fontSize": { "expr": "dataLabelFontSizePx" },
+            "color": { "expr": "dataLabelColor" }
+          },
+          "encoding": {
+            "y": { "field": "Category", "type": "nominal", "axis": null },
+            "yOffset": { "field": "SubCategory", "type": "nominal" },
+            "x": { "field": "MetricA", "type": "quantitative", "stack": false, "axis": null },
+            "text": { "field": "DataLabelText", "type": "nominal" }
+          }
+        }
+      ]
+    }
+  ],
+
+  "resolve": {
+    "scale": { "x": "independent", "y": "independent" }
+  }
+}
