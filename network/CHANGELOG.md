@@ -1,5 +1,19 @@
 # Network Diagram changelog
 
+## v0.1.1 — 2026-08-12
+
+Fix: network diagram renders nothing in Deneb.
+
+- Remove experimental drag interaction code — mark `on` triggers used
+  `modify: "dragNode"` (a signal) instead of a dataset name, causing Vega
+  to silently fail on the nodeMark. Drag can be re-added later with
+  correct dataset-level mutation.
+- Make force transform always static (300 iterations) — remove restart/
+  static signal dependencies that relied on drag code.
+- Fix window transform: add `frame: [null, null]` so `count` op returns
+  total node count, not a running count (affected circular/grid layout
+  positioning).
+
 ## v0.1.0 — 2026-08-12
 
 Initial network diagram visual. Raw Vega (force transform is a physics

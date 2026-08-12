@@ -16,8 +16,6 @@ physics simulation with no Vega-Lite equivalent. Provider must be set to
 - **Force presets**: `compact`, `balanced`, `spread` — each sets link
   distance, repulsion, and link strength. Individual overrides available.
 - **Directed/undirected toggle** with arrowheads on directed edges.
-- **Draggable nodes** (experimental) — click and drag to reposition;
-  the simulation re-settles around the pinned node.
 - **Node sizing**: three modes — `fixed` (uniform radius), `metric`
   (scaled by Measure A), `degree` (scaled by connection count).
 - **Edge weight channels**: three independent toggles — `thickness`,
