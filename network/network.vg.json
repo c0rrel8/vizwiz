@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "Network Diagram v0.1.8 — hierarchical tree layout, L1→L2→L3.",
+  "description": "Network Diagram v0.1.9 — force with circular initial positions.",
   "width": 600,
   "height": 600,
   "autosize": { "type": "pad" },
@@ -9,9 +9,9 @@
 
   "signals": [
     { "name": "dataMode", "value": "hierarchy" },
-    { "name": "layoutMode", "value": "hierarchical" },
+    { "name": "layoutMode", "value": "force" },
     { "name": "directed", "value": false },
-    { "name": "maxLevel", "value": 3 },
+    { "name": "maxLevel", "value": 2 },
     { "name": "effectiveLayout", "update": "layoutMode" },
 
     { "name": "forcePreset", "value": "balanced" },
@@ -322,6 +322,23 @@
           "expr": "effectiveLayout === 'hierarchical' && isValid(datum.TreeY) ? datum.TreeY + 80 : effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : centerX + layoutRadius * cos(datum.CircularAngle)" },
         { "type": "formula", "as": "y",
           "expr": "effectiveLayout === 'hierarchical' && isValid(datum.TreeX) ? datum.TreeX + 20 : effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : centerY + layoutRadius * sin(datum.CircularAngle)" },
+
+        {
+          "type": "force",
+          "iterations": 300,
+          "static": true,
+          "forces": [
+            { "force": "center", "x": { "signal": "centerX" }, "y": { "signal": "centerY" } },
+            { "force": "collide", "radius": { "signal": "nodeRadius + 2" } },
+            { "force": "nbody", "strength": { "signal": "effectiveLayout === 'force' ? -30 : 0" } },
+            { "force": "link", "links": "networkEdges", "id": "datum.Id",
+              "distance": { "signal": "linkDistance" },
+              "strength": { "signal": "effectiveLayout === 'force' ? 0.2 : 0" } }
+          ]
+        },
+
+        { "type": "formula", "as": "x", "expr": "clamp(datum.x, 20, width - 20)" },
+        { "type": "formula", "as": "y", "expr": "clamp(datum.y, 20, height - 20)" },
 
         { "type": "formula", "as": "IsHighlighted", "expr": "datum.NodeHighlightValue > 0" },
 
