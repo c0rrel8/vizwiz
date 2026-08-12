@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "Network Diagram v0.1.5 — no force transform, circular+grid layouts only.",
+  "description": "Network Diagram v0.1.6 — hover labels, smaller nodes.",
   "width": 600,
   "height": 600,
   "autosize": { "type": "pad" },
@@ -31,7 +31,7 @@
     { "name": "effectivePositionStrength", "update": "effectiveLayout === 'force' ? 0 : 1" },
 
     { "name": "nodeSizeMode", "value": "fixed" },
-    { "name": "nodeRadius", "value": 6 },
+    { "name": "nodeRadius", "value": 4 },
     { "name": "nodeSizeMin", "value": 3 },
     { "name": "nodeSizeMax", "value": 15 },
     { "name": "strokeWidth", "value": 1 },
@@ -59,7 +59,7 @@
     { "name": "nodeDefaultFillColor", "value": "#4555D6" },
     { "name": "nodeDefaultStrokeColor", "value": "#182231" },
 
-    { "name": "labelMode", "value": "show" },
+    { "name": "labelMode", "value": "hover" },
     { "name": "labelMinDegree", "value": 1 },
     { "name": "labelFontFamily", "value": "Segoe UI" },
     { "name": "labelFontSize", "value": 11 },
