@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "Network Diagram v0.1.4 — force restored with position clamping.",
+  "description": "Network Diagram v0.1.5 — no force transform, circular+grid layouts only.",
   "width": 600,
   "height": 600,
   "autosize": { "type": "pad" },
@@ -291,29 +291,10 @@
         { "type": "formula", "as": "GridCellH",
           "expr": "(height - 120) / max(1, ceil(datum.NodeCount / datum.GridCols))" },
 
-        { "type": "formula", "as": "TargetX",
-          "expr": "effectiveLayout === 'circular' ? centerX + layoutRadius * cos(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : centerX" },
-        { "type": "formula", "as": "TargetY",
-          "expr": "effectiveLayout === 'circular' ? centerY + layoutRadius * sin(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : centerY" },
-
-        {
-          "type": "force",
-          "iterations": 300,
-          "static": true,
-          "forces": [
-            { "force": "center", "x": { "signal": "centerX" }, "y": { "signal": "centerY" } },
-            { "force": "collide", "radius": { "signal": "nodeRadius + 2" } },
-            { "force": "nbody", "strength": { "signal": "effectiveNbodyStrength" } },
-            { "force": "link", "links": "networkEdges", "id": "datum.Id",
-              "distance": { "signal": "linkDistance" },
-              "strength": { "signal": "effectiveLinkStrength" } },
-            { "force": "x", "x": "TargetX", "strength": { "signal": "effectiveLayout === 'force' ? 0.05 : 1" } },
-            { "force": "y", "y": "TargetY", "strength": { "signal": "effectiveLayout === 'force' ? 0.05 : 1" } }
-          ]
-        },
-
-        { "type": "formula", "as": "x", "expr": "clamp(datum.x, nodeRadius, width - nodeRadius)" },
-        { "type": "formula", "as": "y", "expr": "clamp(datum.y, nodeRadius, height - nodeRadius)" },
+        { "type": "formula", "as": "x",
+          "expr": "effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : centerX + layoutRadius * cos(datum.CircularAngle)" },
+        { "type": "formula", "as": "y",
+          "expr": "effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : centerY + layoutRadius * sin(datum.CircularAngle)" },
 
         { "type": "formula", "as": "IsHighlighted", "expr": "datum.NodeHighlightValue > 0" },
 
