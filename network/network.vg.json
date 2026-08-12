@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "Network Diagram: nodes and edges from either a 3-level hierarchy (field parameters, same exclusion cascade as sunburst/circlepacking/dendrogram) or an edge-list (Source/Target columns). Four layout algorithms: force-directed, circular, grid, hierarchical (hierarchy mode only — falls back to force in edge-list mode). Directed/undirected toggle with arrowheads. Draggable nodes (experimental). Raw Vega — force transform has no Vega-Lite equivalent. Provider must be set to Vega before pasting in Deneb.",
+  "description": "Network Diagram v0.1.3-diag — DIAGNOSTIC: force removed, circular layout only. Confirm nodes render before restoring force.",
   "width": 600,
   "height": 600,
   "autosize": { "type": "pad" },
@@ -291,10 +291,10 @@
         { "type": "formula", "as": "GridCellH",
           "expr": "(height - 120) / max(1, ceil(datum.NodeCount / datum.GridCols))" },
 
-        { "type": "formula", "as": "TargetX",
-          "expr": "effectiveLayout === 'circular' ? centerX + layoutRadius * cos(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : centerX" },
-        { "type": "formula", "as": "TargetY",
-          "expr": "effectiveLayout === 'circular' ? centerY + layoutRadius * sin(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : centerY" },
+        { "type": "formula", "as": "x",
+          "expr": "centerX + layoutRadius * cos(datum.CircularAngle)" },
+        { "type": "formula", "as": "y",
+          "expr": "centerY + layoutRadius * sin(datum.CircularAngle)" },
 
         { "type": "formula", "as": "IsHighlighted", "expr": "datum.NodeHighlightValue > 0" },
 
@@ -305,23 +305,7 @@
         { "type": "formula", "as": "FillColor",
           "expr": "isValid(datum.FillOverride) ? datum.FillOverride : datum.DefaultFillColor" },
         { "type": "formula", "as": "StrokeColor",
-          "expr": "isValid(datum.StrokeOverride) ? datum.StrokeOverride : datum.DefaultStrokeColor" },
-
-        {
-          "type": "force",
-          "iterations": 300,
-          "static": true,
-          "forces": [
-            { "force": "center", "x": { "signal": "centerX" }, "y": { "signal": "centerY" } },
-            { "force": "collide", "radius": { "signal": "nodeRadius + 2" } },
-            { "force": "nbody", "strength": { "signal": "effectiveNbodyStrength" } },
-            { "force": "link", "links": "networkEdges", "id": "datum.Id",
-              "distance": { "signal": "linkDistance" },
-              "strength": { "signal": "effectiveLinkStrength" } },
-            { "force": "x", "x": "TargetX", "strength": { "signal": "effectivePositionStrength" } },
-            { "force": "y", "y": "TargetY", "strength": { "signal": "effectivePositionStrength" } }
-          ]
-        }
+          "expr": "isValid(datum.StrokeOverride) ? datum.StrokeOverride : datum.DefaultStrokeColor" }
       ]
     },
 
