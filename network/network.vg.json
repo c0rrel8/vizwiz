@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "Network Diagram v0.1.6 — hover labels, smaller nodes.",
+  "description": "Network Diagram v0.1.7 — maxLevel filter, lower edge opacity.",
   "width": 600,
   "height": 600,
   "autosize": { "type": "pad" },
@@ -9,9 +9,10 @@
 
   "signals": [
     { "name": "dataMode", "value": "hierarchy" },
-    { "name": "layoutMode", "value": "force" },
+    { "name": "layoutMode", "value": "circular" },
     { "name": "directed", "value": false },
-    { "name": "effectiveLayout", "update": "layoutMode === 'hierarchical' ? 'force' : layoutMode" },
+    { "name": "maxLevel", "value": 2 },
+    { "name": "effectiveLayout", "update": "layoutMode" },
 
     { "name": "forcePreset", "value": "balanced" },
     { "name": "presetLinkDistance", "update": "forcePreset === 'compact' ? 30 : forcePreset === 'spread' ? 80 : 50" },
@@ -188,6 +189,7 @@
         { "type": "formula", "as": "source", "expr": "datum.ParentId" },
         { "type": "formula", "as": "target", "expr": "datum.Id" },
         { "type": "formula", "as": "Weight", "expr": "datum.EdgeWeightValue" },
+        { "type": "formula", "as": "TargetLevel", "expr": "2" },
         { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
       ]
     },
@@ -197,6 +199,7 @@
         { "type": "formula", "as": "source", "expr": "datum.ParentId" },
         { "type": "formula", "as": "target", "expr": "datum.Id" },
         { "type": "formula", "as": "Weight", "expr": "datum.EdgeWeightValue" },
+        { "type": "formula", "as": "TargetLevel", "expr": "3" },
         { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
       ]
     },
@@ -237,7 +240,7 @@
       "name": "networkEdges",
       "source": ["hierarchyEdgesL1", "hierarchyEdgesL2", "edgelistEdges"],
       "transform": [
-        { "type": "filter", "expr": "datum.SourceMode === dataMode" },
+        { "type": "filter", "expr": "datum.SourceMode === dataMode && (dataMode !== 'hierarchy' || datum.TargetLevel <= maxLevel)" },
         { "type": "formula", "as": "PairKey",
           "expr": "datum.source < datum.target ? datum.source + '||' + datum.target : datum.target + '||' + datum.source" },
         {
@@ -254,7 +257,7 @@
       "name": "preNodes",
       "source": ["level1Nodes", "level2Nodes", "leafNodes", "edgelistNodesRaw"],
       "transform": [
-        { "type": "filter", "expr": "datum.SourceMode === dataMode" }
+        { "type": "filter", "expr": "datum.SourceMode === dataMode && (dataMode !== 'hierarchy' || datum.LevelIndex <= maxLevel)" }
       ]
     },
 
@@ -445,9 +448,9 @@
           "strokeOpacity": [
             { "test": "edgeWeightOpacity && isValid(datum.Weight) && datum.Weight > 0",
               "scale": "edgeOpacityScale", "field": "Weight" },
-            { "test": "!networkSelect", "value": 0.6 },
-            { "test": "datum.EdgeInSelection", "value": 0.6 },
-            { "value": 0.15 }
+            { "test": "!networkSelect", "value": 0.15 },
+            { "test": "datum.EdgeInSelection", "value": 0.5 },
+            { "value": 0.05 }
           ],
           "fill": { "value": "none" },
           "tooltip": {
