@@ -1,109 +1,103 @@
 # Handoff notes — Power BI Deneb Visuals library
 
-Picking this up in a new Claude session/account. Read this first, then the
-repo's own `README.md`/`docs/patterns.md`/`docs/design-system.md` for the
-full architecture.
+Read this first, then `CLAUDE.md`, `patterns.md`, and `designsystem.md`.
 
-## Where the actual work lives
+## Repository: c0rrel8/vizwiz (GitHub)
 
-Everything is committed to git, branch `claude/local-git-github-sync-pzb8iz`,
-currently at commit `f45c283`. **Nothing has reached GitHub yet** — see
-"The GitHub sync blocker" below. To restore this exact state in a new
-environment:
+All work is on `main`. No sync blockers — GitHub push works.
 
-```
-git clone softcrylic-dataviz.bundle softcrylic-dataviz
-cd softcrylic-dataviz
-git checkout claude/local-git-github-sync-pzb8iz
-npm install
-node tools/validate.mjs   # sanity check — should print "OK" for all 3 visuals
-```
+## What's built (6 visual directories)
 
-## The GitHub sync blocker
+| Dir | Engine | Status | Notes |
+|---|---|---|---|
+| `aster/` | Vega-Lite | Mature, confirmed live | Radial wedge chart (angle + radius) |
+| `waffle/` | Vega-Lite | Mature, confirmed live | Grid-of-shapes proportional chart |
+| `circlepacking/` | Raw Vega | Confirmed live | Nested circles, 3-level hierarchy |
+| `sunburst/` | Raw Vega | Confirmed live | Concentric arc rings, 3-level hierarchy |
+| `dendrogram/` | Raw Vega | Confirmed live | Tree diagram, 3-level hierarchy |
+| `network/` | Raw Vega | **Dead end** | Force transform incompatible with Deneb — see `network/NATIVE_HANDOFF.md` |
 
-`git push` to `c0re71/softcrylic-dataviz` fails with a GitHub-side 403:
-*"Permission to C0re71/softcrylic-dataviz.git denied to C0re71"* — this is
-a real GitHub permission/App-installation issue, not a network fault, and
-not something retrying fixes. **This may or may not persist under a
-different Claude account** — it depends on whether that account's
-Claude-GitHub integration has been separately granted write access to this
-repo. Worth checking early in the new session (attempt a push, or check
-the repo's GitHub App installation permissions) rather than assuming a
-fresh account automatically resolves it.
+### Network diagram — key finding
 
-## What's built (3 visuals, all in `visuals/`)
+Vega's `force` transform does not work in Deneb. After 9 iterations
+(v0.1.0–v0.1.9), every spec with a force transform produced marks at
+off-screen coordinates with no errors. Without force layout, a network
+diagram is just a less-featured dendrogram. The `network/` directory
+contains:
+- The broken spec (v0.1.9) as a reference for data pipeline and
+  interaction logic
+- `NATIVE_HANDOFF.md` — comprehensive handoff for building a native
+  Power BI custom visual instead, referencing the `c0rrel8/3dscatter`
+  project architecture
 
-1. **`aster-plot`** (Vega-Lite) — mature, stable. Wedge angle/radius
-   chart. Recently backported the waffle chart's fill/stroke/gap feature
-   set (see its own CHANGELOG v0.11.0) and the "stroke," not "border,"
-   naming convention.
-2. **`waffle-chart`** (Vega-Lite) — mature. Grid-of-shapes chart, with an
-   opt-in `useRowBreaks` staircase layout (a deliberate design choice to
-   convey category grouping without using color, since this report can't
-   use color for set identity), cross-highlight-in support, and small
-   multiples via `SeriesCategory`.
-3. **`circle-packing`** (raw Vega, `.vg.json`) — v0.20.2, **confirmed
-   rendering live against real report data**. The library's first
-   raw-Vega spec (true circle packing needs Vega's `stratify`/`pack`
-   hierarchy transforms, which Vega-Lite doesn't have — see
-   `docs/patterns.md`'s "When to use raw Vega instead of Vega-Lite").
-   3-level hierarchy (Level1/Level2/Level3), each level its own field
-   parameter (`MappedParameter`/`MappedParameterTwo`/`MappedParameterThree`
-   — the first two are *reused* from the aster plot/waffle chart, not new;
-   see the README's "Fields expected" for the shared-slicer implication).
+## Shared data model
 
-## Two open next-step items (not blockers)
+All visuals bind to the same Power BI model.
 
-Both surfaced during circle packing's live confirmation, both documented
-in the relevant READMEs/CHANGELOGs but not fixed yet:
+4 candidate columns for field parameters: `EngagementCodeList`,
+`AlphaCode`, `CustodianDisplayName`, `EFileName`.
 
-1. **The rank-based color gradient DAX
-   (`visuals/waffle-chart/dax/category-color-gradient-rank.dax`) crashes
-   at high cardinality** — thousands of distinct leaf values against an
-   O(N²) rank pattern. Prominent warning header now on the file itself;
-   needs re-engineering (drop the alphabetical tie-break in favor of
-   RANKX/`RANK` window function accepting ties, or precompute the sort
-   into a calculated column on the fact table) before per-category rank
-   coloring is safe to bind on circle packing. Circle packing currently
-   uses solid per-level colors, which sidesteps this entirely.
-2. **`MappedParameterThree` still needs to be created in the report's
-   model** — the DAX for it is at
-   `visuals/circle-packing/dax/category-three-field-parameter.dax`, not
-   yet pasted live. Level 1/2 reuse the aster plot's and waffle chart's
-   existing field parameters directly (see the circle packing README's
-   "Fields expected"); only Level 3 is a genuinely new field parameter.
+3 field parameter tables with exclusion cascade:
+- `MappedParameter` — Level 1 / aster Category
+- `MappedParameterTwo` — Level 2 / waffle Category
+- `MappedParameterThree` — Level 3
 
-## Learned this session (documented in docs/patterns.md)
+## Open items
 
-- **Deneb's Provider setting is fixed at visual creation, not switchable
-  later.** The UI toggle in Settings changes, but the actual compiler
-  doesn't swap — a repurposed Vega-Lite Deneb visual will keep failing
-  Vega-Lite validation on a raw Vega spec even after Provider is set to
-  Vega and ▶ Run is pressed. Fix: create a brand-new Deneb visual and
-  set Provider to Vega *before* pasting the spec.
+1. **Rank-based color gradient DAX crashes at high cardinality** —
+   O(N²) rank pattern. Needs RANKX or calculated column approach.
+   Circle packing sidesteps this with solid per-level colors.
+2. **`MappedParameterThree`** may still need to be created in the
+   report model — DAX template at
+   `dendrogram/categorythreefieldparameter.dax`.
 
-## Working conventions established across this whole session (see docs/patterns.md and docs/design-system.md for the full versions)
+## Key conventions (see patterns.md + designsystem.md for full versions)
 
-- Params (or raw-Vega `signals`) hold every adjustable value; Deneb's
-  Config tab is deliberately left empty.
-- A field-mapping adapter (`calculate`/`formula` steps at the top of the
-  transform pipeline) isolates every place a Power BI field rename could
-  require a spec change, mapping raw incoming field names to fixed
-  internal canonical names.
-- Every color override field has an `isValid(override) ? override :
-  defaultParam` fallback — never reference the raw override field
-  directly outside that one fallback calculation.
-- Every commit that changes a visual's spec or DAX bumps the root
-  `package.json` version and adds a dated entry to that visual's own
-  CHANGELOG.md explaining *why*, not just *what*.
-- Nothing is claimed "confirmed" unless it was actually verified — either
-  locally via `tools/validate.mjs`/`render-preview.mjs`/
-  `test-interaction.mjs` (compiles, renders, or an actual simulated click
-  via Playwright), or live in Power BI Desktop by the report author.
-  "Verified locally" and "confirmed live" are kept explicitly distinct
-  throughout every README — this repo's history includes multiple cases
-  where something that compiled cleanly was still silently wrong (e.g. a
-  `joinaggregate` that multiplied cell counts, an arc mark's `filled:
-  false` layer losing its click hit-area, a wrong circle-size formula in
-  raw Vega) — none of those threw an error, all were only caught by
-  actually rendering and looking, or by a live report author's report.
+- Signals/params hold every adjustable value. Deneb Config tab is empty.
+- Field-mapping adapter at top of transform pipeline maps Power BI names
+  to canonical names. All downstream refs use canonical names only.
+- Color overrides: `isValid(override) ? override : defaultParam`.
+- "Stroke" not "border" for spec-internal naming.
+- Font size in points, converted to px via `* 4 / 3`.
+- DAX: first line = `Name =` assignment. Use MAX not SELECTEDVALUE.
+  Don't name a VAR after a DAX function. Prefix measures per visual.
+- Every spec/DAX change bumps version + adds dated CHANGELOG entry.
+- Nothing claimed "confirmed" without actual verification.
+
+## Deneb gotchas (accumulated across all sessions)
+
+- **Provider is fixed at visual creation** — cannot switch Vega-Lite ↔
+  Vega after creating the Deneb visual. Create a new visual with the
+  correct Provider before pasting.
+- **`force` transform**: marks render off-screen, no errors. Unusable.
+- **`mark.on` + `modify`**: expects a dataset name, not a signal name.
+  Using a signal silently breaks the entire mark.
+- **`from.transform` inline filter**: silently ignored on marks. Use a
+  top-level filtered dataset instead.
+- **Data tab**: shows only raw bound data, NOT intermediate datasets.
+- **Symbol mark `size`** for circles = `4 * r²` (bounding square area),
+  NOT `π * r²` like Vega-Lite.
+- **Text marks on interactive marks** intercept clicks — set
+  `interactive: false` on labels.
+- **Partition transform**: non-leaf nodes must contribute
+  `LayoutValue: 0` to avoid double-counting angular proportions.
+- **Event streams**: `@markName:click` (no trailing `!`).
+
+## Design system (dark canvas)
+
+| Role | Hex |
+|---|---|
+| Background / stroke default | `#182231` |
+| Title tier text | `#FCFCFD` |
+| Subtitle tier text | `#A5B4CB` |
+| Level 1 fill default | `#2D3B68` |
+| Level 2 fill default | `#4555D6` |
+| Level 3 fill default | `#8C97E8` |
+| Font | Segoe UI |
+
+## Related projects
+
+- **c0rrel8/3dscatter** — Native Power BI custom visual (WebGL 3D
+  scatter). Reference architecture for building native visuals. See
+  `network/NATIVE_HANDOFF.md` for how to use it as a template for the
+  network map.
