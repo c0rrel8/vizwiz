@@ -11,7 +11,7 @@
     { "name": "dataMode", "value": "hierarchy" },
     { "name": "layoutMode", "value": "force" },
     { "name": "directed", "value": false },
-    { "name": "effectiveLayout", "update": "(layoutMode === 'hierarchical' && dataMode === 'edgelist') ? 'force' : layoutMode" },
+    { "name": "effectiveLayout", "update": "layoutMode === 'hierarchical' ? 'force' : layoutMode" },
 
     { "name": "forcePreset", "value": "balanced" },
     { "name": "presetLinkDistance", "update": "forcePreset === 'compact' ? 30 : forcePreset === 'spread' ? 80 : 50" },
@@ -183,35 +183,20 @@
       ]
     },
     {
-      "name": "rootNode",
-      "values": [
-        { "Id": "root", "ParentId": null, "LevelIndex": 0, "NodeValue": null,
-          "NodeHighlightValue": null, "EdgeWeightValue": null,
-          "FillOverride": null, "StrokeOverride": null, "Name": "root", "SourceMode": "hierarchy" }
+      "name": "hierarchyEdgesL1", "source": "level2Nodes",
+      "transform": [
+        { "type": "formula", "as": "source", "expr": "datum.ParentId" },
+        { "type": "formula", "as": "target", "expr": "datum.Id" },
+        { "type": "formula", "as": "Weight", "expr": "datum.EdgeWeightValue" },
+        { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
       ]
     },
-
     {
-      "name": "hierarchyTree",
-      "source": ["rootNode", "level1Nodes", "level2Nodes", "leafNodes"],
+      "name": "hierarchyEdgesL2", "source": "leafNodes",
       "transform": [
-        { "type": "stratify", "key": "Id", "parentKey": "ParentId" },
-        {
-          "type": "tree", "method": "cluster",
-          "size": [{ "signal": "height - 120" }, { "signal": "width - 120" }],
-          "as": ["TreeBreadth", "TreeDepth", "TreeDepthIdx", "TreeChildren"]
-        }
-      ]
-    },
-
-    {
-      "name": "hierarchyEdges", "source": "hierarchyTree",
-      "transform": [
-        { "type": "treelinks" },
-        { "type": "filter", "expr": "datum.source.LevelIndex >= 1" },
-        { "type": "formula", "as": "source", "expr": "datum.source.Id" },
-        { "type": "formula", "as": "target", "expr": "datum.target.Id" },
-        { "type": "formula", "as": "Weight", "expr": "datum.target.EdgeWeightValue" },
+        { "type": "formula", "as": "source", "expr": "datum.ParentId" },
+        { "type": "formula", "as": "target", "expr": "datum.Id" },
+        { "type": "formula", "as": "Weight", "expr": "datum.EdgeWeightValue" },
         { "type": "formula", "as": "SourceMode", "expr": "'hierarchy'" }
       ]
     },
@@ -250,7 +235,7 @@
 
     {
       "name": "networkEdges",
-      "source": ["hierarchyEdges", "edgelistEdges"],
+      "source": ["hierarchyEdgesL1", "hierarchyEdgesL2", "edgelistEdges"],
       "transform": [
         { "type": "filter", "expr": "datum.SourceMode === dataMode" },
         { "type": "formula", "as": "PairKey",
@@ -295,9 +280,6 @@
         { "type": "lookup", "from": "degreeTarget", "key": "Id", "fields": ["Id"], "values": ["DegreeIn"], "default": 0 },
         { "type": "formula", "as": "Degree", "expr": "(datum.DegreeOut || 0) + (datum.DegreeIn || 0)" },
 
-        { "type": "lookup", "from": "hierarchyTree", "key": "Id", "fields": ["Id"],
-          "values": ["TreeBreadth", "TreeDepth"] },
-
         { "type": "window", "ops": ["row_number", "count"], "as": ["NodeIndex", "NodeCount"], "frame": [null, null] },
 
         { "type": "formula", "as": "CircularAngle",
@@ -310,9 +292,9 @@
           "expr": "(height - 120) / max(1, ceil(datum.NodeCount / datum.GridCols))" },
 
         { "type": "formula", "as": "TargetX",
-          "expr": "effectiveLayout === 'circular' ? centerX + layoutRadius * cos(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : effectiveLayout === 'hierarchical' && isValid(datum.TreeDepth) ? datum.TreeDepth + 60 : centerX" },
+          "expr": "effectiveLayout === 'circular' ? centerX + layoutRadius * cos(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + ((datum.NodeIndex - 1) % datum.GridCols) * datum.GridCellW + datum.GridCellW / 2 : centerX" },
         { "type": "formula", "as": "TargetY",
-          "expr": "effectiveLayout === 'circular' ? centerY + layoutRadius * sin(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : effectiveLayout === 'hierarchical' && isValid(datum.TreeBreadth) ? datum.TreeBreadth + 60 : centerY" },
+          "expr": "effectiveLayout === 'circular' ? centerY + layoutRadius * sin(datum.CircularAngle) : effectiveLayout === 'grid' ? 60 + floor((datum.NodeIndex - 1) / datum.GridCols) * datum.GridCellH + datum.GridCellH / 2 : centerY" },
 
         { "type": "formula", "as": "IsHighlighted", "expr": "datum.NodeHighlightValue > 0" },
 
