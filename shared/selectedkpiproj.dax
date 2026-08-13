@@ -1,0 +1,11 @@
+Selected KPI Proj =
+VAR _sel = SELECTEDVALUE('KPI Selector'[KPI],"Ingested Minus Hosted")
+RETURN
+SWITCH(
+    _sel,
+    "Ingested Minus Hosted", [Ingest M Host],
+    "Data Recieved", [Data Recieved GB],
+    "Ingested", [Tot_Ingested],
+    "Filtered (Reduction)", [Total_Reviewed_Pop],
+    "Moved To Hosting", [Total_Hosted]
+)

@@ -1,0 +1,9 @@
+Selected KPI Total =
+VAR _max =
+    MAXX(
+        ALLSELECTED(Project_snapshot_Fact[CustodianDisplayName]),
+        [Selected KPI Proj]
+    )
+VAR _bufferedMax = _max * [Barchart Buffer]
+RETURN
+_bufferedMax - [Selected KPI Proj]
