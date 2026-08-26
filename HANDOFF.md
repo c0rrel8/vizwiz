@@ -16,6 +16,7 @@ All work is on `main`. No sync blockers — GitHub push works.
 | `sunburst/` | Raw Vega | Confirmed live | Concentric arc rings, 3-level hierarchy |
 | `dendrogram/` | Raw Vega | Confirmed live | Tree diagram, 3-level hierarchy |
 | `network/` | Raw Vega | **Dead end** | Force transform incompatible with Deneb — see `network/NATIVE_HANDOFF.md` |
+| `shared/` | DAX only | **Unverified live** | Parameterized gradient measures (position → fill → label) — see `shared/README.md` |
 
 ### Network diagram — key finding
 
@@ -45,8 +46,11 @@ All visuals bind to the same Power BI model.
 ## Open items
 
 1. **Rank-based color gradient DAX crashes at high cardinality** —
-   O(N²) rank pattern. Needs RANKX or calculated column approach.
-   Circle packing sidesteps this with solid per-level colors.
+   O(N²) rank pattern in the older per-visual gradient measures.
+   `shared/gradientposition.dax` rewrites this with RANKX (one pass
+   instead of N²) — **not yet verified live**; the crash was reported
+   from the report, so only the report can confirm the fix. Circle
+   packing sidesteps the issue entirely with solid per-level colors.
 2. **`MappedParameterThree`** may still need to be created in the
    report model — DAX template at
    `dendrogram/categorythreefieldparameter.dax`.

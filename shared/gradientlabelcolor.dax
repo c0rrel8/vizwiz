@@ -1,0 +1,174 @@
+Gradient Label Color =
+// ============================================================================
+// SHARED MEASURE -- 3 of 3. Pairs with gradientfillcolor.dax.
+//
+// Returns a "#RRGGBB" hex string for the TEXT drawn on top of the fill that
+// [Gradient Fill Color] produced for the same dimension member -- i.e. it
+// flips between a light and a dark text color at whatever point along the
+// gradient the fill gets too dark (or too light) for the other one to read.
+// Bind it to the visual's LabelColorOverride role; the specs already read it
+// via isValid(override) ? override : defaultParam.
+//
+// Three ways to decide the flip, chosen by SwitchMode below:
+//   "CONTRAST"  (default, recommended) -- parses the ACTUAL fill hex, computes
+//                its WCAG relative luminance, and returns whichever of the two
+//                text colors has the higher WCAG contrast ratio against it.
+//                No threshold to tune, and it stays correct when the gradient
+//                endpoints change.
+//   "LUMINANCE" -- same parse, but flips at a fixed luminance threshold.
+//                Use when you want to bias the flip point one way rather than
+//                take the mathematically-better-contrasting color.
+//   "POSITION"  -- ignores color entirely and flips at a fixed % along the
+//                gradient. Cheapest, and the one to use if you want the flip
+//                to happen at an exact member rank regardless of hue.
+//
+// DECOUPLED FROM THE GRADIENT ON PURPOSE: "CONTRAST"/"LUMINANCE" only need a
+// hex string, so FillHexSource can point at ANY measure that returns one --
+// a fixed-color SWITCH measure, an older per-visual gradient measure, a
+// column of hex codes. Only "POSITION" mode needs [Gradient Position].
+//
+// RENAME PER VISUAL (model-wide measure namespace), and update the two
+// measure references in CONFIG if you renamed those.
+//
+// EDITING RULE: everything you normally need to change is in the CONFIG
+// section. The ENGINE below is generic color math.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// CONFIG -- edit freely.
+// ---------------------------------------------------------------------------
+
+// The two candidate text colors. Defaults are the design system's title-tier
+// text and its dark canvas background.
+VAR LightHex = "#FCFCFD"
+VAR DarkHex = "#182231"
+
+// "CONTRAST" | "LUMINANCE" | "POSITION" -- see header.
+VAR SwitchMode = "CONTRAST"
+
+// Only used when SwitchMode = "LUMINANCE". WCAG relative luminance, 0..1.
+// 0.179 is the standard crossover point (the luminance at which black and
+// white text contrast equally); raise it to use light text on more of the
+// ramp, lower it to use dark text on more of the ramp.
+VAR LuminanceThreshold = 0.179
+
+// Only used when SwitchMode = "POSITION". Fraction along the gradient, 0..1,
+// at which the text color flips. 0.55 = "the last 45% of the ramp gets the
+// end-side text color".
+VAR PositionThreshold = 0.55
+// Which text color belongs to each end of the ramp. Defaults assume the
+// gradient runs LIGHT (HexStart) -> DARK (HexEnd), matching
+// gradientfillcolor.dax's own defaults: dark text on the light end, light
+// text on the dark end. Swap these two if your ramp runs dark -> light.
+VAR TextOnStartSide = DarkHex
+VAR TextOnEndSide = LightHex
+
+// Where the fill color comes from. Any measure returning "#RRGGBB", "#RGB",
+// or the same without a "#".
+VAR FillHexSource = [Gradient Fill Color]
+
+// Only read in "POSITION" mode. Rename here if you renamed the base measure.
+VAR PositionValue = [Gradient Position]
+
+// Returned when there is no fill color to judge (blank member, total row).
+VAR HexFallback = LightHex
+
+// ---------------------------------------------------------------------------
+// ENGINE -- generic. No edits needed to retarget this measure.
+// ---------------------------------------------------------------------------
+
+VAR HexDigits = "0123456789ABCDEF"
+
+// All three colors that need a luminance go through one shared parse, rather
+// than three copies of the same twenty lines. UNION(ROW(...)) rather than the
+// { (...) } table constructor because ROW unambiguously accepts VAR
+// references as values.
+VAR Palette =
+    UNION (
+        ROW ( "Slot", "FILL", "Hex", FillHexSource ),
+        ROW ( "Slot", "LIGHT", "Hex", LightHex ),
+        ROW ( "Slot", "DARK", "Hex", DarkHex )
+    )
+
+// Normalize to a bare 6-digit uppercase string -- same rules as
+// gradientfillcolor.dax: optional "#", any case, 3-digit shorthand, 8-digit
+// with alpha (alpha dropped), and "0"-padding rather than an error for
+// anything unparseable. Separate ADDCOLUMNS because a column added in an
+// ADDCOLUMNS cannot be referenced by a sibling column in the same one.
+VAR PaletteNormalized =
+    ADDCOLUMNS (
+        Palette,
+        "Hex6",
+            VAR Raw = UPPER ( SUBSTITUTE ( TRIM ( [Hex] ), "#", "" ) )
+            RETURN
+                IF (
+                    LEN ( Raw ) = 3,
+                    MID ( Raw, 1, 1 ) & MID ( Raw, 1, 1 )
+                        & MID ( Raw, 2, 1 ) & MID ( Raw, 2, 1 )
+                        & MID ( Raw, 3, 1 ) & MID ( Raw, 3, 1 ),
+                    LEFT ( Raw & "000000", 6 )
+                )
+    )
+
+// WCAG 2.x relative luminance. Each channel is converted 0..255 -> 0..1, then
+// gamma-expanded (the <= 0.03928 branch is the linear toe of the sRGB
+// transfer curve), then weighted by the eye's sensitivity to that channel.
+// This is NOT a simple average of R/G/B -- green carries ~72% of perceived
+// brightness -- which is exactly why a naive "is this color dark" test picks
+// the wrong text color on saturated blues and greens.
+VAR PaletteLuminance =
+    ADDCOLUMNS (
+        PaletteNormalized,
+        "Lum",
+            VAR R255 =
+                ( SEARCH ( MID ( [Hex6], 1, 1 ), HexDigits, 1, 1 ) - 1 ) * 16
+                    + ( SEARCH ( MID ( [Hex6], 2, 1 ), HexDigits, 1, 1 ) - 1 )
+            VAR G255 =
+                ( SEARCH ( MID ( [Hex6], 3, 1 ), HexDigits, 1, 1 ) - 1 ) * 16
+                    + ( SEARCH ( MID ( [Hex6], 4, 1 ), HexDigits, 1, 1 ) - 1 )
+            VAR B255 =
+                ( SEARCH ( MID ( [Hex6], 5, 1 ), HexDigits, 1, 1 ) - 1 ) * 16
+                    + ( SEARCH ( MID ( [Hex6], 6, 1 ), HexDigits, 1, 1 ) - 1 )
+            VAR Rs = DIVIDE ( R255, 255 )
+            VAR Gs = DIVIDE ( G255, 255 )
+            VAR Bs = DIVIDE ( B255, 255 )
+            VAR RLin =
+                IF ( Rs <= 0.03928, DIVIDE ( Rs, 12.92 ), POWER ( DIVIDE ( Rs + 0.055, 1.055 ), 2.4 ) )
+            VAR GLin =
+                IF ( Gs <= 0.03928, DIVIDE ( Gs, 12.92 ), POWER ( DIVIDE ( Gs + 0.055, 1.055 ), 2.4 ) )
+            VAR BLin =
+                IF ( Bs <= 0.03928, DIVIDE ( Bs, 12.92 ), POWER ( DIVIDE ( Bs + 0.055, 1.055 ), 2.4 ) )
+            RETURN
+                0.2126 * RLin + 0.7152 * GLin + 0.0722 * BLin
+    )
+
+VAR LumFill = MAXX ( FILTER ( PaletteLuminance, [Slot] = "FILL" ), [Lum] )
+VAR LumLight = MAXX ( FILTER ( PaletteLuminance, [Slot] = "LIGHT" ), [Lum] )
+VAR LumDark = MAXX ( FILTER ( PaletteLuminance, [Slot] = "DARK" ), [Lum] )
+
+// WCAG contrast ratio: (lighter + 0.05) / (darker + 0.05), so it runs 1:1
+// (identical colors) to 21:1 (black on white). 4.5 is the AA threshold for
+// body text, 3.0 for large/bold text -- worth checking the winning ratio here
+// against those if a ramp ever looks marginal.
+VAR ContrastLight =
+    DIVIDE ( MAX ( LumLight, LumFill ) + 0.05, MIN ( LumLight, LumFill ) + 0.05 )
+VAR ContrastDark =
+    DIVIDE ( MAX ( LumDark, LumFill ) + 0.05, MIN ( LumDark, LumFill ) + 0.05 )
+
+RETURN
+    SWITCH (
+        TRUE (),
+        // POSITION mode never looks at the fill, so it is checked before the
+        // blank-fill guard.
+        SwitchMode = "POSITION",
+            IF (
+                ISBLANK ( PositionValue ),
+                HexFallback,
+                IF ( PositionValue >= PositionThreshold, TextOnEndSide, TextOnStartSide )
+            ),
+        ISBLANK ( FillHexSource ), HexFallback,
+        SwitchMode = "LUMINANCE",
+            IF ( LumFill <= LuminanceThreshold, LightHex, DarkHex ),
+        // Default: "CONTRAST".
+        IF ( ContrastLight >= ContrastDark, LightHex, DarkHex )
+    )

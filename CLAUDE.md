@@ -12,7 +12,13 @@ circlepacking/  Raw Vega  (.vg.json) — nested circles, 3-level hierarchy
 sunburst/       Raw Vega  (.vg.json) — concentric arc rings, 3-level hierarchy
 dendrogram/     Raw Vega  (.vg.json) — tree diagram, 3-level hierarchy
 network/        Raw Vega  (.vg.json) — force-directed network, dual data mode
+shared/         DAX only — reusable, parameterized color measures
 ```
+
+`shared/` holds the parameterized gradient measure trio (position → fill
+color → label color). Prefer retargeting those at a new visual, via their
+config blocks, over writing another bespoke gradient measure — see
+`shared/README.md`.
 
 Root-level files: `patterns.md` (architectural patterns), `designsystem.md`
 (colors/fonts/sizing), `HANDOFF.md` (session history). The root `README.md`

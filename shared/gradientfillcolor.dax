@@ -1,0 +1,161 @@
+Gradient Fill Color =
+// ============================================================================
+// SHARED MEASURE -- 2 of 3. Requires gradientposition.dax to be in the model
+// first (this measure calls it). See that file's header for the trio.
+//
+// Returns a "#RRGGBB" hex string for the current dimension member, sampled
+// from a 2- or 3-stop gradient at whatever position [Gradient Position] puts
+// that member. Bind it to the visual's ColorOverride / ColorOverrideFill role
+// in the Values well -- Deneb picks it up per row, and the specs already read
+// it via the isValid(override) ? override : defaultParam pattern.
+//
+// WHY HEX AND NOT A RANK NUMBER: a rank is only useful to Power BI's own
+// native conditional formatting, which none of the Deneb visuals in this repo
+// go through -- they take a color string per datum straight off the bound
+// field. Emitting hex here also means the light/dark label decision can be
+// made from the ACTUAL rendered color (see gradientlabelcolor.dax) instead of
+// re-guessing it from a threshold. If you do want the number for a native
+// table/matrix visual, set OutputScale = "RANK" in a duplicate of
+// [Gradient Position] and use that directly -- don't change this measure.
+//
+// RENAME PER VISUAL (model-wide measure namespace), and if you renamed
+// [Gradient Position], update the reference in CONFIG below to match.
+//
+// EDITING RULE: everything you normally need to change is in the CONFIG
+// section. The ENGINE below is generic hex math.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// CONFIG -- edit freely.
+// ---------------------------------------------------------------------------
+
+// Gradient endpoints. Accepts "#RRGGBB", "#RGB", or the same without the "#".
+// Defaults are the waffle chart's existing light-to-brand ramp; the design
+// system's own dark-canvas fill tiers are #2D3B68 / #4555D6 / #8C97E8.
+VAR HexStart = "#A5C1FF" // position 0
+VAR HexEnd = "#4555D6"   // position 1
+
+// Optional third stop, for a diverging ramp or a non-linear-feeling ramp
+// between two ends that are far apart in hue.
+VAR UseMidStop = FALSE
+VAR HexMid = "#6B7BE0"
+VAR MidStopAt = 0.5 // where along 0..1 HexMid sits. Must be > 0 and < 1.
+
+// Returned when the member has no position at all (no measure value in
+// context, or the measure is being evaluated outside a single member --
+// e.g. a total row). Defaults to the design system's background/stroke color
+// so an unresolved element reads as empty rather than as a real category.
+VAR HexFallback = "#182231"
+
+// The base measure. Rename here if you renamed it.
+VAR PositionValue = [Gradient Position]
+
+// ---------------------------------------------------------------------------
+// ENGINE -- generic. No edits needed to retarget this measure.
+// ---------------------------------------------------------------------------
+
+VAR HexDigits = "0123456789ABCDEF"
+
+// Parse all three stops in one pass rather than writing the same six lines of
+// hex math three times. UNION(ROW(...)) rather than the { (...) } table
+// constructor because ROW is unambiguously happy taking VAR references as
+// values.
+VAR Stops =
+    UNION (
+        ROW ( "Slot", "START", "Hex", HexStart ),
+        ROW ( "Slot", "MID", "Hex", HexMid ),
+        ROW ( "Slot", "END", "Hex", HexEnd )
+    )
+
+// Stage 1: normalize each stop to a bare 6-digit uppercase string. Handles a
+// leading "#", lowercase, 3-digit shorthand ("#4D6" -> "44DD66"), and an
+// 8-digit "#RRGGBBAA" (alpha is dropped). Anything unparseable pads with "0"
+// and ends up a dark color rather than erroring. Two stages because
+// ADDCOLUMNS cannot reference a column added in the same ADDCOLUMNS.
+VAR StopsNormalized =
+    ADDCOLUMNS (
+        Stops,
+        "Hex6",
+            VAR Raw = UPPER ( SUBSTITUTE ( TRIM ( [Hex] ), "#", "" ) )
+            RETURN
+                IF (
+                    LEN ( Raw ) = 3,
+                    MID ( Raw, 1, 1 ) & MID ( Raw, 1, 1 )
+                        & MID ( Raw, 2, 1 ) & MID ( Raw, 2, 1 )
+                        & MID ( Raw, 3, 1 ) & MID ( Raw, 3, 1 ),
+                    LEFT ( Raw & "000000", 6 )
+                )
+    )
+
+// Stage 2: each hex pair -> 0..255. SEARCH's 4th argument (NotFoundValue = 1)
+// makes an invalid character parse as 0 instead of throwing.
+VAR StopsRGB =
+    ADDCOLUMNS (
+        StopsNormalized,
+        "R",
+            ( SEARCH ( MID ( [Hex6], 1, 1 ), HexDigits, 1, 1 ) - 1 ) * 16
+                + ( SEARCH ( MID ( [Hex6], 2, 1 ), HexDigits, 1, 1 ) - 1 ),
+        "G",
+            ( SEARCH ( MID ( [Hex6], 3, 1 ), HexDigits, 1, 1 ) - 1 ) * 16
+                + ( SEARCH ( MID ( [Hex6], 4, 1 ), HexDigits, 1, 1 ) - 1 ),
+        "B",
+            ( SEARCH ( MID ( [Hex6], 5, 1 ), HexDigits, 1, 1 ) - 1 ) * 16
+                + ( SEARCH ( MID ( [Hex6], 6, 1 ), HexDigits, 1, 1 ) - 1 )
+    )
+
+VAR StartR = MAXX ( FILTER ( StopsRGB, [Slot] = "START" ), [R] )
+VAR StartG = MAXX ( FILTER ( StopsRGB, [Slot] = "START" ), [G] )
+VAR StartB = MAXX ( FILTER ( StopsRGB, [Slot] = "START" ), [B] )
+VAR MidR = MAXX ( FILTER ( StopsRGB, [Slot] = "MID" ), [R] )
+VAR MidG = MAXX ( FILTER ( StopsRGB, [Slot] = "MID" ), [G] )
+VAR MidB = MAXX ( FILTER ( StopsRGB, [Slot] = "MID" ), [B] )
+VAR EndR = MAXX ( FILTER ( StopsRGB, [Slot] = "END" ), [R] )
+VAR EndG = MAXX ( FILTER ( StopsRGB, [Slot] = "END" ), [G] )
+VAR EndB = MAXX ( FILTER ( StopsRGB, [Slot] = "END" ), [B] )
+
+// [Gradient Position] already clamps to 0..1, but clamp again so this measure
+// stays correct if it is ever pointed at some other position measure.
+VAR P = MIN ( 1, MAX ( 0, PositionValue ) )
+
+// With a mid stop, 0..MidStopAt is the START->MID segment and MidStopAt..1 is
+// MID->END; SegFrac is the position WITHIN whichever segment applies.
+VAR SecondSegment = UseMidStop && P > MidStopAt
+VAR SegFrac =
+    IF (
+        NOT UseMidStop,
+        P,
+        IF (
+            P <= MidStopAt,
+            DIVIDE ( P, MidStopAt ),
+            DIVIDE ( P - MidStopAt, 1 - MidStopAt )
+        )
+    )
+
+VAR FromR = IF ( SecondSegment, MidR, StartR )
+VAR FromG = IF ( SecondSegment, MidG, StartG )
+VAR FromB = IF ( SecondSegment, MidB, StartB )
+VAR ToR = IF ( UseMidStop && NOT SecondSegment, MidR, EndR )
+VAR ToG = IF ( UseMidStop && NOT SecondSegment, MidG, EndG )
+VAR ToB = IF ( UseMidStop && NOT SecondSegment, MidB, EndB )
+
+// Straight per-channel RGB interpolation. Not perceptually uniform (LAB/LCH
+// would be), but it matches what every other color measure in this repo does
+// and what Vega's own default interpolation does, so ramps stay consistent
+// between a DAX-driven fill and a spec-driven one.
+VAR OutR = ROUND ( FromR + SegFrac * ( ToR - FromR ), 0 )
+VAR OutG = ROUND ( FromG + SegFrac * ( ToG - FromG ), 0 )
+VAR OutB = ROUND ( FromB + SegFrac * ( ToB - FromB ), 0 )
+
+VAR RHi = MID ( HexDigits, INT ( OutR / 16 ) + 1, 1 )
+VAR RLo = MID ( HexDigits, MOD ( OutR, 16 ) + 1, 1 )
+VAR GHi = MID ( HexDigits, INT ( OutG / 16 ) + 1, 1 )
+VAR GLo = MID ( HexDigits, MOD ( OutG, 16 ) + 1, 1 )
+VAR BHi = MID ( HexDigits, INT ( OutB / 16 ) + 1, 1 )
+VAR BLo = MID ( HexDigits, MOD ( OutB, 16 ) + 1, 1 )
+
+RETURN
+    IF (
+        ISBLANK ( PositionValue ),
+        HexFallback,
+        "#" & RHi & RLo & GHi & GLo & BHi & BLo
+    )

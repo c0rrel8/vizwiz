@@ -1,0 +1,304 @@
+Gradient Position =
+// ============================================================================
+// SHARED BASE MEASURE -- 1 of 3. Paste all three, in this order:
+//   1. gradientposition.dax    (this file)  -> numeric 0..1 (or 1..N) position
+//   2. gradientfillcolor.dax                -> hex fill color
+//   3. gradientlabelcolor.dax               -> hex text/label color
+//
+// This measure does ALL the heavy lifting: it resolves which column the
+// dimension's field parameter currently points at, counts that dimension's
+// distinct members in the current filter context, ranks the current member
+// 1..N, and returns where that member sits along the gradient as a number
+// between 0 (= HexStart end) and 1 (= HexEnd end).
+//
+// The two color measures are deliberately thin wrappers around this one, so
+// there is exactly ONE place that has to know about the field parameter and
+// its candidate columns. Do not duplicate that logic into them.
+//
+// RENAME PER VISUAL. Measure names are a single model-wide namespace in this
+// model (see CLAUDE.md), so all three measures need a per-visual prefix --
+// e.g. "Waffle Gradient Position", "Waffle Gradient Fill Color", "Waffle
+// Gradient Label Color". If you rename this one, update the [Gradient
+// Position] reference inside gradientfillcolor.dax to match.
+//
+// EDITING RULE: everything you normally need to change lives in CONFIG A and
+// CONFIG B below. The ENGINE section underneath is generic -- it should not
+// need editing to retarget this measure at a new visual, dimension, or
+// gradient.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// CONFIG A -- behavior knobs. Edit freely; all are plain scalars.
+// ---------------------------------------------------------------------------
+
+// What drives the gradient?
+//   "MEASURE" = order/scale members by a numeric measure (biggest gets the
+//               HexEnd end of the gradient when SortDirection = "ASC").
+//   "SORT"    = order members by a sort column instead (alphabetical, or an
+//               explicit order column). Ignores the measure entirely.
+VAR GradientBasis = "MEASURE"
+
+// How are colors spaced across the members? (only used when
+// GradientBasis = "MEASURE" -- "SORT" is always evenly spaced)
+//   "EQUAL" = evenly spaced by RANK. Every member is one equal step from the
+//             next regardless of how far apart the underlying values are.
+//             Best for skewed data -- this is the safe default.
+//   "VALUE" = spaced by MAGNITUDE. A member 4% of the way from min to max
+//             gets a color 4% of the way along the gradient.
+VAR Spacing = "EQUAL"
+
+// Only used when Spacing = "VALUE".
+//   "LINEAR" = straight min..max interpolation.
+//   "LOG"    = log-scaled, for right-skewed measures where a few large
+//              outliers would otherwise squash everything else against the
+//              HexStart end. Assumes the measure is >= 0 (see LogOffset).
+VAR ValueScale = "LINEAR"
+
+// Which end of the gradient the "first" member lands on.
+//   "ASC"  = lowest measure value / first sort value -> position 0 (HexStart);
+//            highest / last -> position 1 (HexEnd).
+//   "DESC" = reversed.
+VAR SortDirection = "ASC"
+
+// What this measure returns.
+//   "UNIT" = 0..1 position. REQUIRED by the two color measures.
+//   "RANK" = 1..N integer rank, for using this measure on its own in a native
+//            Power BI conditional-formatting "gradient by field value" rule
+//            (set the rule's Minimum to 1 and Maximum to your member count,
+//            or leave both on Automatic). The color measures will produce
+//            wrong output if you leave this on "RANK" -- if you need both,
+//            duplicate this measure under a second name.
+VAR OutputScale = "UNIT"
+
+// Added inside LOG() to keep LOG(0) from erroring when ValueScale = "LOG".
+// Only raise this if the measure can go negative -- e.g. set it to
+// 1 - (most negative possible value).
+VAR LogOffset = 1
+
+// ---------------------------------------------------------------------------
+// CONFIG B -- dimension wiring. One block per field-parameter candidate.
+// ---------------------------------------------------------------------------
+//
+// WHY THIS IS REPETITIVE: DAX cannot dynamically dereference "whichever
+// column the field parameter currently points at" -- see
+// aster/measureacolorgradient.dax for the full writeup (composite-key
+// constraint, why MAX and not SELECTEDVALUE, why SWITCH may only branch
+// between already-computed SCALARS, never between tables). So each candidate
+// column gets its own block of plain scalar variables computed up front, and
+// SWITCH picks between those scalars at the end.
+//
+// TO RETARGET THIS MEASURE AT ANOTHER VISUAL, in this section only:
+//   1. Point SelectedField at that visual's own field parameter + label col:
+//        'MappedParameter'[Category]        -- Level 1 / aster Category
+//        'MappedParameterTwo'[Category2]    -- Level 2 / waffle Category  (CONFIRMED live)
+//        'MappedParameterThree'[Category3]  -- Level 3  (column name NOT confirmed live)
+//   2. Search/replace [Data Recieved GB] with your own gradient measure
+//      (5 occurrences: 1 hoisted below + 1 per candidate block).
+//   3. Add/remove a whole candidate block, plus its matching line in each of
+//      the four SWITCHes in the ENGINE section, for every candidate
+//      added/removed from the field parameter itself. Keep this list in sync
+//      with the field parameter's own .dax file.
+//
+// NOT USING A FIELD PARAMETER? Set UseFieldParameter = FALSE, put the one
+// column's name in FixedCandidate, and delete the candidate blocks you don't
+// need (along with their SWITCH lines). If the model has no field parameter
+// table at all, also replace the MAX(...) below with "" so the measure still
+// compiles.
+VAR UseFieldParameter = TRUE
+VAR FixedCandidate = "EngagementCodeList"
+VAR SelectedField =
+    IF (
+        UseFieldParameter,
+        MAX ( 'MappedParameterTwo'[Category2] ),
+        FixedCandidate
+    )
+
+// The gradient measure evaluated in the CURRENT row's filter context (i.e.
+// this member's own value). Filter context is the same whichever candidate is
+// selected, so this is hoisted out of the per-candidate blocks.
+VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
+
+// --- Candidate block template -------------------------------------------
+// Copy a block, then search/replace the column name in all 6 places.
+// Members_X   : one row per distinct member of this column, in the CURRENT
+//               filter context (ALLSELECTED = the gradient rescales as
+//               slicers narrow the data). To make the gradient absolute --
+//               fixed against the whole model regardless of slicers -- change
+//               ALLSELECTED to ALL in every candidate block.
+// Count_X     : total distinct member count = the "N" of the 1..N rank.
+// MinV_X/MaxV_X : that column's lowest/highest measure value, for magnitude
+//               spacing. Computed here, as scalars, rather than as MINX/MAXX
+//               inside a SWITCH branch further down -- SWITCH is only reliable
+//               when every branch is an already-computed scalar.
+// SortKey_X   : this member's own value of the sort column. Defaults to the
+//               dimension itself (so "SORT" basis = alphabetical). Point both
+//               the SortKeyTemp column and SortKey_X at an explicit order
+//               column instead if you have one -- they must be the same
+//               column, one evaluated per row, one in the current context.
+// RankM_X     : rank 1..N by measure value, ascending (1 = smallest).
+// RankS_X     : rank 1..N by sort key, ascending (1 = first).
+//
+// RANKX, not the COUNTROWS(FILTER(...)) "count how many rows beat me" pattern
+// used by the older per-visual gradient measures -- that pattern is O(N^2)
+// and is the known cause of the high-cardinality crash logged as open item 1
+// in HANDOFF.md. RANKX does one pass. Consequence: ties now share a rank (and
+// therefore share a color) instead of being broken alphabetically, which is
+// the more defensible behavior for a value-driven gradient anyway. SKIP
+// leaves gaps after a tie (1,1,3) so the rank still spans 1..N.
+// -------------------------------------------------------------------------
+
+VAR Members_EngagementCodeList =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
+        "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
+        "SortKeyTemp", 'Project_snapshot_Fact'[EngagementCodeList]
+    )
+VAR Count_EngagementCodeList = COUNTROWS ( Members_EngagementCodeList )
+VAR MinV_EngagementCodeList = MINX ( Members_EngagementCodeList, [GradValueTemp] )
+VAR MaxV_EngagementCodeList = MAXX ( Members_EngagementCodeList, [GradValueTemp] )
+VAR SortKey_EngagementCodeList = MAX ( 'Project_snapshot_Fact'[EngagementCodeList] )
+VAR RankM_EngagementCodeList =
+    RANKX ( Members_EngagementCodeList, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+VAR RankS_EngagementCodeList =
+    RANKX ( Members_EngagementCodeList, [SortKeyTemp], SortKey_EngagementCodeList, ASC, SKIP )
+
+VAR Members_AlphaCode =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
+        "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
+        "SortKeyTemp", 'Project_snapshot_Fact'[AlphaCode]
+    )
+VAR Count_AlphaCode = COUNTROWS ( Members_AlphaCode )
+VAR MinV_AlphaCode = MINX ( Members_AlphaCode, [GradValueTemp] )
+VAR MaxV_AlphaCode = MAXX ( Members_AlphaCode, [GradValueTemp] )
+VAR SortKey_AlphaCode = MAX ( 'Project_snapshot_Fact'[AlphaCode] )
+VAR RankM_AlphaCode =
+    RANKX ( Members_AlphaCode, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+VAR RankS_AlphaCode =
+    RANKX ( Members_AlphaCode, [SortKeyTemp], SortKey_AlphaCode, ASC, SKIP )
+
+VAR Members_CustodianDisplayName =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
+        "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
+        "SortKeyTemp", 'Project_snapshot_Fact'[CustodianDisplayName]
+    )
+VAR Count_CustodianDisplayName = COUNTROWS ( Members_CustodianDisplayName )
+VAR MinV_CustodianDisplayName = MINX ( Members_CustodianDisplayName, [GradValueTemp] )
+VAR MaxV_CustodianDisplayName = MAXX ( Members_CustodianDisplayName, [GradValueTemp] )
+VAR SortKey_CustodianDisplayName = MAX ( 'Project_snapshot_Fact'[CustodianDisplayName] )
+VAR RankM_CustodianDisplayName =
+    RANKX ( Members_CustodianDisplayName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+VAR RankS_CustodianDisplayName =
+    RANKX ( Members_CustodianDisplayName, [SortKeyTemp], SortKey_CustodianDisplayName, ASC, SKIP )
+
+VAR Members_EFileName =
+    ADDCOLUMNS (
+        ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
+        "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
+        "SortKeyTemp", 'Project_snapshot_Fact'[EFileName]
+    )
+VAR Count_EFileName = COUNTROWS ( Members_EFileName )
+VAR MinV_EFileName = MINX ( Members_EFileName, [GradValueTemp] )
+VAR MaxV_EFileName = MAXX ( Members_EFileName, [GradValueTemp] )
+VAR SortKey_EFileName = MAX ( 'Project_snapshot_Fact'[EFileName] )
+VAR RankM_EFileName =
+    RANKX ( Members_EFileName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+VAR RankS_EFileName =
+    RANKX ( Members_EFileName, [SortKeyTemp], SortKey_EFileName, ASC, SKIP )
+
+// ---------------------------------------------------------------------------
+// ENGINE -- generic. Only edit to add/remove a candidate's SWITCH line.
+// ---------------------------------------------------------------------------
+
+// Collapse the per-candidate scalars down to the one selected candidate.
+// SWITCH over already-computed scalars only -- never over tables.
+VAR MemberCount =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", Count_EngagementCodeList,
+        "AlphaCode", Count_AlphaCode,
+        "CustodianDisplayName", Count_CustodianDisplayName,
+        "EFileName", Count_EFileName
+    )
+VAR MinValue =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", MinV_EngagementCodeList,
+        "AlphaCode", MinV_AlphaCode,
+        "CustodianDisplayName", MinV_CustodianDisplayName,
+        "EFileName", MinV_EFileName
+    )
+VAR MaxValue =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", MaxV_EngagementCodeList,
+        "AlphaCode", MaxV_AlphaCode,
+        "CustodianDisplayName", MaxV_CustodianDisplayName,
+        "EFileName", MaxV_EFileName
+    )
+VAR RankByMeasure =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", RankM_EngagementCodeList,
+        "AlphaCode", RankM_AlphaCode,
+        "CustodianDisplayName", RankM_CustodianDisplayName,
+        "EFileName", RankM_EFileName
+    )
+VAR RankBySort =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", RankS_EngagementCodeList,
+        "AlphaCode", RankS_AlphaCode,
+        "CustodianDisplayName", RankS_CustodianDisplayName,
+        "EFileName", RankS_EFileName
+    )
+
+// Named RankAsc, not Rank -- a bare "VAR Rank =" is a syntax error, because
+// DAX now has a built-in RANK window function that the name collides with
+// (confirmed live, see waffle/categorycolorgradientrank.dax).
+VAR RankAsc = IF ( GradientBasis = "SORT", RankBySort, RankByMeasure )
+
+// Magnitude-spaced position (Spacing = "VALUE").
+VAR ScaledMin = IF ( ValueScale = "LOG", LOG ( MinValue + LogOffset ), MinValue )
+VAR ScaledMax = IF ( ValueScale = "LOG", LOG ( MaxValue + LogOffset ), MaxValue )
+VAR ScaledCur = IF ( ValueScale = "LOG", LOG ( CurMeasureValue + LogOffset ), CurMeasureValue )
+VAR PosByValue =
+    IF (
+        ScaledMax = ScaledMin,
+        0.5, // every member has the same value -- park them mid-gradient
+        DIVIDE ( ScaledCur - ScaledMin, ScaledMax - ScaledMin )
+    )
+
+// Rank-spaced position (Spacing = "EQUAL", and always for GradientBasis =
+// "SORT"). Rank 1 -> 0, rank N -> 1, equal steps in between.
+VAR PosByRank =
+    IF (
+        MemberCount <= 1,
+        0.5, // single member -- nothing to space against
+        DIVIDE ( RankAsc - 1, MemberCount - 1 )
+    )
+
+VAR PosAsc =
+    IF (
+        GradientBasis = "MEASURE" && Spacing = "VALUE",
+        PosByValue,
+        PosByRank
+    )
+
+// Apply direction, then clamp -- the color measures assume a hard 0..1.
+VAR PosDirected = IF ( SortDirection = "DESC", 1 - PosAsc, PosAsc )
+VAR PositionOut = MIN ( 1, MAX ( 0, PosDirected ) )
+
+// 1..N rank, direction applied, for OutputScale = "RANK".
+VAR RankOut = IF ( SortDirection = "DESC", MemberCount + 1 - RankAsc, RankAsc )
+
+RETURN
+    // BLANK in, BLANK out: a member with no measure value gets no rank and no
+    // position, and the fill measure turns that into its fallback color
+    // rather than a misleading mid-gradient shade.
+    IF (
+        ISBLANK ( RankAsc ) && ISBLANK ( CurMeasureValue ),
+        BLANK (),
+        IF ( OutputScale = "RANK", RankOut, PositionOut )
+    )
