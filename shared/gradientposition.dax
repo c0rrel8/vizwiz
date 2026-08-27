@@ -225,6 +225,9 @@ VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
 //               when every branch is an already-computed scalar.
 // SortKey_X   : this member's own value of the sort column, in the current
 //               context. Must name the same column as SortKeyTemp above.
+// HasOne_X    : is exactly one member of the dimension in context? FALSE on a
+//               table/matrix TOTAL row, which is what the RETURN uses it for.
+//               Must name the DIMENSION column, not the sort column.
 // -------------------------------------------------------------------------
 
 VAR MemberBase_EngagementCodeList =
@@ -258,6 +261,7 @@ VAR KeyCount_EngagementCodeList =
 VAR MinV_EngagementCodeList = MINX ( MemberTable_EngagementCodeList, [GradValueTemp] )
 VAR MaxV_EngagementCodeList = MAXX ( MemberTable_EngagementCodeList, [GradValueTemp] )
 VAR SortKey_EngagementCodeList = MAX ( 'Project_snapshot_Fact'[EngagementCodeList] )
+VAR HasOne_EngagementCodeList = HASONEVALUE ( 'Project_snapshot_Fact'[EngagementCodeList] )
 
 VAR MemberBase_AlphaCode =
     ADDCOLUMNS (
@@ -290,6 +294,7 @@ VAR KeyCount_AlphaCode =
 VAR MinV_AlphaCode = MINX ( MemberTable_AlphaCode, [GradValueTemp] )
 VAR MaxV_AlphaCode = MAXX ( MemberTable_AlphaCode, [GradValueTemp] )
 VAR SortKey_AlphaCode = MAX ( 'Project_snapshot_Fact'[AlphaCode] )
+VAR HasOne_AlphaCode = HASONEVALUE ( 'Project_snapshot_Fact'[AlphaCode] )
 
 VAR MemberBase_CustodianDisplayName =
     ADDCOLUMNS (
@@ -322,6 +327,7 @@ VAR KeyCount_CustodianDisplayName =
 VAR MinV_CustodianDisplayName = MINX ( MemberTable_CustodianDisplayName, [GradValueTemp] )
 VAR MaxV_CustodianDisplayName = MAXX ( MemberTable_CustodianDisplayName, [GradValueTemp] )
 VAR SortKey_CustodianDisplayName = MAX ( 'Project_snapshot_Fact'[CustodianDisplayName] )
+VAR HasOne_CustodianDisplayName = HASONEVALUE ( 'Project_snapshot_Fact'[CustodianDisplayName] )
 
 VAR MemberBase_EFileName =
     ADDCOLUMNS (
@@ -354,6 +360,7 @@ VAR KeyCount_EFileName =
 VAR MinV_EFileName = MINX ( MemberTable_EFileName, [GradValueTemp] )
 VAR MaxV_EFileName = MAXX ( MemberTable_EFileName, [GradValueTemp] )
 VAR SortKey_EFileName = MAX ( 'Project_snapshot_Fact'[EFileName] )
+VAR HasOne_EFileName = HASONEVALUE ( 'Project_snapshot_Fact'[EFileName] )
 
 // ---------------------------------------------------------------------------
 // ENGINE -- generic. Only edit to add/remove a candidate's SWITCH line.
@@ -423,6 +430,14 @@ VAR KeyCount =
         "CustodianDisplayName", KeyCount_CustodianDisplayName,
         "EFileName", KeyCount_EFileName
     )
+VAR HasSingleMember =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", HasOne_EngagementCodeList,
+        "AlphaCode", HasOne_AlphaCode,
+        "CustodianDisplayName", HasOne_CustodianDisplayName,
+        "EFileName", HasOne_EFileName
+    )
 VAR MinValue =
     SWITCH (
         SelectedField,
@@ -490,11 +505,17 @@ VAR RankOut = IF ( SortDirection = "DESC", KeyCount + 1 - RankAsc, RankAsc )
 RETURN
     // BLANK in, BLANK out: a member with no measure value gets no position,
     // and the fill measure turns that into its fallback color rather than a
-    // misleading mid-gradient shade. MemberCount is referenced here so the
-    // variable is not dead code -- it is the honest "distinct members of the
-    // dimension" count, which KeyCount only equals when TieBreak = "SORT".
+    // misleading mid-gradient shade. HasSingleMember also blanks the TOTAL row
+    // of a table/matrix visual -- without it the total inherits whichever
+    // member MAX happens to land on and shows a meaningless color swatch.
+    // Deneb has no total row, so this only matters when eyeballing the measure
+    // in a table; drop that clause if a total-row color is actually wanted.
+    // MemberCount is referenced here so the variable is not dead code -- it is
+    // the honest "distinct members of the dimension" count, which KeyCount only
+    // equals when TieBreak = "SORT".
     IF (
-        ISBLANK ( CurMeasureValue ) && GradientBasis = "MEASURE",
+        NOT HasSingleMember
+            || ( ISBLANK ( CurMeasureValue ) && GradientBasis = "MEASURE" ),
         BLANK (),
         IF (
             OutputScale = "RANK",

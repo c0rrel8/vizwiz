@@ -1,5 +1,18 @@
 # Changelog — Shared gradient measures
 
+## 0.2.4 — 2026-08-27
+
+Brings `gradientposition.dax` fully level with `example-colortest.dax`: the
+total-row guard had only been applied to the example. `HASONEVALUE` is
+per-candidate here (`HasOne_X`, one per field-parameter candidate, collapsed by
+a `SWITCH` like every other scalar), since which column is the dimension
+changes with the field parameter.
+
+Without it a table/matrix TOTAL row inherits whichever member `MAX` lands on
+and renders a meaningless color swatch. Deneb has no total row, so this only
+shows up when eyeballing the measure in a table — which is how the sort bug in
+`0.2.2` was found, so it is worth having.
+
 ## 0.2.3 — 2026-08-27
 
 Docs only. **Confirmed live in Power BI** against a 20-member test table with
