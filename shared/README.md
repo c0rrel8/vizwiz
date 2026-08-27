@@ -152,6 +152,22 @@ identical.
 The `SKIP` tie mode leaves gaps after a tie (`1, 1, 3`), so the rank still
 spans `1..N` and the even spacing still lands on `0` and `1` at the ends.
 
+## Naming gotchas
+
+DAX rejects a `VAR` named with certain reserved words, with a bare syntax
+error rather than anything that points at the cause. Two are confirmed live
+in this model:
+
+| Reserved | Use instead |
+|---|---|
+| `Rank` | `RankAsc`, `RankOut` — collides with the built-in `RANK` window function |
+| `Members` | `MemberTable` |
+
+The suffixed forms (`Rank_AlphaCode`, `MemberTable_AlphaCode`) are unaffected
+— it is the bare word that collides. This bites when collapsing the measure
+down to a single dimension, where the suffix has nothing left to distinguish
+and the obvious move is to drop it.
+
 ## Verification status
 
 - **Verified:** the color arithmetic — hex parsing (including `#RGB`

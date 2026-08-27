@@ -1,5 +1,15 @@
 # Changelog — Shared gradient measures
 
+## 0.1.2 — 2026-08-27
+
+`Members_X` renamed to `MemberTable_X`. **Confirmed live by the report
+author: `Members` is reserved** — a bare `VAR Members =` is rejected. Same
+class of finding as the bare `VAR Rank =` collision found earlier (see
+`waffle/categorycolorgradientrank.dax`), and it bites in the same place: when
+this measure is collapsed to a single dimension, the per-candidate suffix has
+nothing left to distinguish and the obvious move is to drop it, landing on the
+reserved bare word. Both are now tabled in the README under "Naming gotchas".
+
 ## 0.1.1 — 2026-08-27
 
 Docs only. Documented that a sort key pointing at a column other than the

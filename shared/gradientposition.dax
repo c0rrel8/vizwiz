@@ -120,7 +120,13 @@ VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
 
 // --- Candidate block template -------------------------------------------
 // Copy a block, then search/replace the column name in all 6 places.
-// Members_X   : one row per distinct member of this column, in the CURRENT
+// NAMED MemberTable_X, NOT Members_X -- a bare "VAR Members =" is rejected;
+// the word is reserved (confirmed live by the report author). Same class of
+// finding as the bare "VAR Rank =" collision documented in
+// waffle/categorycolorgradientrank.dax. The suffixed form is what is used
+// below either way, but do not shorten it to a bare Members when collapsing
+// this measure down to a single dimension.
+// MemberTable_X   : one row per distinct member of this column, in the CURRENT
 //               filter context (ALLSELECTED = the gradient rescales as
 //               slicers narrow the data). To make the gradient absolute --
 //               fixed against the whole model regardless of slicers -- change
@@ -155,65 +161,65 @@ VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
 // leaves gaps after a tie (1,1,3) so the rank still spans 1..N.
 // -------------------------------------------------------------------------
 
-VAR Members_EngagementCodeList =
+VAR MemberTable_EngagementCodeList =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[EngagementCodeList]
     )
-VAR Count_EngagementCodeList = COUNTROWS ( Members_EngagementCodeList )
-VAR MinV_EngagementCodeList = MINX ( Members_EngagementCodeList, [GradValueTemp] )
-VAR MaxV_EngagementCodeList = MAXX ( Members_EngagementCodeList, [GradValueTemp] )
+VAR Count_EngagementCodeList = COUNTROWS ( MemberTable_EngagementCodeList )
+VAR MinV_EngagementCodeList = MINX ( MemberTable_EngagementCodeList, [GradValueTemp] )
+VAR MaxV_EngagementCodeList = MAXX ( MemberTable_EngagementCodeList, [GradValueTemp] )
 VAR SortKey_EngagementCodeList = MAX ( 'Project_snapshot_Fact'[EngagementCodeList] )
 VAR RankM_EngagementCodeList =
-    RANKX ( Members_EngagementCodeList, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+    RANKX ( MemberTable_EngagementCodeList, [GradValueTemp], CurMeasureValue, ASC, SKIP )
 VAR RankS_EngagementCodeList =
-    RANKX ( Members_EngagementCodeList, [SortKeyTemp], SortKey_EngagementCodeList, ASC, SKIP )
+    RANKX ( MemberTable_EngagementCodeList, [SortKeyTemp], SortKey_EngagementCodeList, ASC, SKIP )
 
-VAR Members_AlphaCode =
+VAR MemberTable_AlphaCode =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[AlphaCode]
     )
-VAR Count_AlphaCode = COUNTROWS ( Members_AlphaCode )
-VAR MinV_AlphaCode = MINX ( Members_AlphaCode, [GradValueTemp] )
-VAR MaxV_AlphaCode = MAXX ( Members_AlphaCode, [GradValueTemp] )
+VAR Count_AlphaCode = COUNTROWS ( MemberTable_AlphaCode )
+VAR MinV_AlphaCode = MINX ( MemberTable_AlphaCode, [GradValueTemp] )
+VAR MaxV_AlphaCode = MAXX ( MemberTable_AlphaCode, [GradValueTemp] )
 VAR SortKey_AlphaCode = MAX ( 'Project_snapshot_Fact'[AlphaCode] )
 VAR RankM_AlphaCode =
-    RANKX ( Members_AlphaCode, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+    RANKX ( MemberTable_AlphaCode, [GradValueTemp], CurMeasureValue, ASC, SKIP )
 VAR RankS_AlphaCode =
-    RANKX ( Members_AlphaCode, [SortKeyTemp], SortKey_AlphaCode, ASC, SKIP )
+    RANKX ( MemberTable_AlphaCode, [SortKeyTemp], SortKey_AlphaCode, ASC, SKIP )
 
-VAR Members_CustodianDisplayName =
+VAR MemberTable_CustodianDisplayName =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[CustodianDisplayName]
     )
-VAR Count_CustodianDisplayName = COUNTROWS ( Members_CustodianDisplayName )
-VAR MinV_CustodianDisplayName = MINX ( Members_CustodianDisplayName, [GradValueTemp] )
-VAR MaxV_CustodianDisplayName = MAXX ( Members_CustodianDisplayName, [GradValueTemp] )
+VAR Count_CustodianDisplayName = COUNTROWS ( MemberTable_CustodianDisplayName )
+VAR MinV_CustodianDisplayName = MINX ( MemberTable_CustodianDisplayName, [GradValueTemp] )
+VAR MaxV_CustodianDisplayName = MAXX ( MemberTable_CustodianDisplayName, [GradValueTemp] )
 VAR SortKey_CustodianDisplayName = MAX ( 'Project_snapshot_Fact'[CustodianDisplayName] )
 VAR RankM_CustodianDisplayName =
-    RANKX ( Members_CustodianDisplayName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+    RANKX ( MemberTable_CustodianDisplayName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
 VAR RankS_CustodianDisplayName =
-    RANKX ( Members_CustodianDisplayName, [SortKeyTemp], SortKey_CustodianDisplayName, ASC, SKIP )
+    RANKX ( MemberTable_CustodianDisplayName, [SortKeyTemp], SortKey_CustodianDisplayName, ASC, SKIP )
 
-VAR Members_EFileName =
+VAR MemberTable_EFileName =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[EFileName]
     )
-VAR Count_EFileName = COUNTROWS ( Members_EFileName )
-VAR MinV_EFileName = MINX ( Members_EFileName, [GradValueTemp] )
-VAR MaxV_EFileName = MAXX ( Members_EFileName, [GradValueTemp] )
+VAR Count_EFileName = COUNTROWS ( MemberTable_EFileName )
+VAR MinV_EFileName = MINX ( MemberTable_EFileName, [GradValueTemp] )
+VAR MaxV_EFileName = MAXX ( MemberTable_EFileName, [GradValueTemp] )
 VAR SortKey_EFileName = MAX ( 'Project_snapshot_Fact'[EFileName] )
 VAR RankM_EFileName =
-    RANKX ( Members_EFileName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
+    RANKX ( MemberTable_EFileName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
 VAR RankS_EFileName =
-    RANKX ( Members_EFileName, [SortKeyTemp], SortKey_EFileName, ASC, SKIP )
+    RANKX ( MemberTable_EFileName, [SortKeyTemp], SortKey_EFileName, ASC, SKIP )
 
 // ---------------------------------------------------------------------------
 // ENGINE -- generic. Only edit to add/remove a candidate's SWITCH line.
