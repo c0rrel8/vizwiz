@@ -87,6 +87,8 @@ The field parameters and their label columns:
 | `SortDirection` | `"ASC"` \| `"DESC"` | Which end of the ramp the first member lands on |
 | `OutputScale` | `"UNIT"` \| `"RANK"` | `0`–`1` for the color measures, `1`–`N` for standalone use |
 | `LogOffset` | number | Added inside `LOG()` to survive zeros; raise it if the measure goes negative |
+| `SortKeyIsNumeric` | `TRUE` \| `FALSE` | **Whether the sort column holds numbers.** Wrong value silently scrambles the order — see below |
+| `SortKeyDigits` | integer | Padding width for a numeric sort column |
 | `KeyOffset` | number | Tiebreak key: raise it so every measure value is `>= 0` if the measure can go negative |
 | `KeyIntDigits` | integer | Tiebreak key: zero-padding width. Must exceed the digit count of your largest value |
 | `KeyDecimals` | integer | Tiebreak key: precision at which two values count as tied |
@@ -197,10 +199,19 @@ Verified by reproducing the text ordering outside DAX:
 2. **Negatives sort backwards among themselves** — `"-5" > "-20"` as text. If
    the measure can go negative, set `KeyOffset` to at least the absolute value
    of the most negative it can reach.
-3. **A numeric sort column must be zero-padded too**, in the `SortKeyTemp`
-   expression: `FORMAT ( 'T'[Ord], "000000" )`. Unpadded, `"10"` sorts before
-   `"9"`. Padding is also correct for the `"SORT"` basis, so there is no
-   reason not to.
+3. **A numeric sort column must be zero-padded too** — set
+   `SortKeyIsNumeric = TRUE`. Unpadded, `"10"` sorts before `"9"`. A *text*
+   sort column must NOT be padded: the padding is compared first, so it
+   destroys alphabetical order. The template defaults to `FALSE` because its
+   shipped sort key is the dimension column itself, and all four candidates
+   are text.
+
+   This one has already been hit live. A 20-member test set with a numeric
+   sort column and a flat measure came out ordered
+   `1, 10, 11 … 19, 2, 20, 3 … 9` — a textbook unpadded text sort, which
+   looked like a gradient bug rather than a sort bug. Flat test data made it
+   obvious; had the measure varied, it would only have misordered *within*
+   tie groups and been far harder to spot.
 
 Values are compared at `KeyDecimals` precision, so anything closer than that
 counts as a tie. Usually a feature — float noise stops inventing orderings —

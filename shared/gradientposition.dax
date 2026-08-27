@@ -88,6 +88,27 @@ VAR OutputScale = "UNIT"
 VAR LogOffset = 1
 
 // ---------------------------------------------------------------------------
+// SORT KEY TYPE -- get this wrong and the order is silently scrambled
+// ---------------------------------------------------------------------------
+// The sort key is packed into a TEXT ranking key (see below), and text puts
+// "10" before "2". A NUMERIC sort column therefore has to be zero-padded
+// first; a TEXT one must NOT be (padding a text value destroys its
+// alphabetical order, since the padding is compared first).
+//   TRUE  = the sort column holds numbers -> zero-pad to SortKeyDigits
+//   FALSE = the sort column holds text    -> use as-is
+// FALSE is the default because the shipped sort key IS the dimension column
+// itself, and all four candidates here are text. Flip it to TRUE the moment
+// you repoint SortKeyTemp at a numeric order column -- this exact mistake
+// reordered a 20-member test set as 1, 10, 11 ... 19, 2, 20, 3 ... 9 and
+// looked like a gradient bug rather than a sort bug.
+// SortKeyDigits must exceed the digit count of the largest sort value. If the
+// sort column can go negative, add an offset to it in CONFIG B -- text sorts
+// "-5" above "-20" for the same reason KeyOffset exists.
+VAR SortKeyIsNumeric = FALSE
+VAR SortKeyDigits = 12
+VAR SortKeyFormat = REPT ( "0", SortKeyDigits )
+
+// ---------------------------------------------------------------------------
 // HOW TIES ARE BROKEN -- read before changing KeyIntDigits/KeyDecimals/KeyOffset
 // ---------------------------------------------------------------------------
 // Breaking a tie needs a strict total order over (measure value, sort key).
@@ -112,11 +133,8 @@ VAR LogOffset = 1
 //      inventing orderings) but raise it for a measure whose real differences
 //      live further right of the decimal point.
 //
-// AND: if your SORT COLUMN IS NUMERIC, zero-pad it too, in the SortKeyTemp
-// expression in each candidate block -- FORMAT ( 'T'[Ord], "000000" ) -- for
-// exactly the reason in 1. above. Concatenating a raw number puts "10" before
-// "9". Padding is safe for the "SORT" basis as well, so there is no reason
-// not to.
+// The sort key half of the packed key is handled by SortKeyIsNumeric above,
+// not here -- see that block.
 VAR KeyOffset = 0
 VAR KeyIntDigits = 12
 VAR KeyDecimals = 3
@@ -179,8 +197,9 @@ VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
 //               not in row context and cannot be referenced bare; CALCULATE
 //               forces the context transition. The default below needs no
 //               CALCULATE only because it names the column already in the
-//               table. If that order column is numeric, zero-pad it -- see
-//               "HOW TIES ARE BROKEN" above.
+//               table. Leave the column in its NATIVE TYPE here -- any
+//               padding a numeric order column needs is applied later, in the
+//               engine, via SortKeyIsNumeric.
 // MemberTable_X : MemberBase_X plus the packed ranking key. A separate
 //               ADDCOLUMNS because a column added in an ADDCOLUMNS cannot be
 //               referenced by a sibling column in the same one -- and doing it
@@ -218,13 +237,20 @@ VAR MemberTable_EngagementCodeList =
     ADDCOLUMNS (
         MemberBase_EngagementCodeList,
         "RankKeyTemp",
-            SWITCH (
-                TRUE (),
-                GradientBasis = "SORT", [SortKeyTemp] & "",
-                TieBreak = "SORT",
-                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
-                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
-            )
+            VAR SortText =
+                IF (
+                    SortKeyIsNumeric,
+                    FORMAT ( [SortKeyTemp], SortKeyFormat ),
+                    [SortKeyTemp] & ""
+                )
+            RETURN
+                SWITCH (
+                    TRUE (),
+                    GradientBasis = "SORT", SortText,
+                    TieBreak = "SORT",
+                        FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & SortText,
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+                )
     )
 VAR MemberCount_EngagementCodeList = COUNTROWS ( MemberTable_EngagementCodeList )
 VAR KeyCount_EngagementCodeList =
@@ -243,13 +269,20 @@ VAR MemberTable_AlphaCode =
     ADDCOLUMNS (
         MemberBase_AlphaCode,
         "RankKeyTemp",
-            SWITCH (
-                TRUE (),
-                GradientBasis = "SORT", [SortKeyTemp] & "",
-                TieBreak = "SORT",
-                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
-                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
-            )
+            VAR SortText =
+                IF (
+                    SortKeyIsNumeric,
+                    FORMAT ( [SortKeyTemp], SortKeyFormat ),
+                    [SortKeyTemp] & ""
+                )
+            RETURN
+                SWITCH (
+                    TRUE (),
+                    GradientBasis = "SORT", SortText,
+                    TieBreak = "SORT",
+                        FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & SortText,
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+                )
     )
 VAR MemberCount_AlphaCode = COUNTROWS ( MemberTable_AlphaCode )
 VAR KeyCount_AlphaCode =
@@ -268,13 +301,20 @@ VAR MemberTable_CustodianDisplayName =
     ADDCOLUMNS (
         MemberBase_CustodianDisplayName,
         "RankKeyTemp",
-            SWITCH (
-                TRUE (),
-                GradientBasis = "SORT", [SortKeyTemp] & "",
-                TieBreak = "SORT",
-                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
-                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
-            )
+            VAR SortText =
+                IF (
+                    SortKeyIsNumeric,
+                    FORMAT ( [SortKeyTemp], SortKeyFormat ),
+                    [SortKeyTemp] & ""
+                )
+            RETURN
+                SWITCH (
+                    TRUE (),
+                    GradientBasis = "SORT", SortText,
+                    TieBreak = "SORT",
+                        FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & SortText,
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+                )
     )
 VAR MemberCount_CustodianDisplayName = COUNTROWS ( MemberTable_CustodianDisplayName )
 VAR KeyCount_CustodianDisplayName =
@@ -293,13 +333,20 @@ VAR MemberTable_EFileName =
     ADDCOLUMNS (
         MemberBase_EFileName,
         "RankKeyTemp",
-            SWITCH (
-                TRUE (),
-                GradientBasis = "SORT", [SortKeyTemp] & "",
-                TieBreak = "SORT",
-                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
-                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
-            )
+            VAR SortText =
+                IF (
+                    SortKeyIsNumeric,
+                    FORMAT ( [SortKeyTemp], SortKeyFormat ),
+                    [SortKeyTemp] & ""
+                )
+            RETURN
+                SWITCH (
+                    TRUE (),
+                    GradientBasis = "SORT", SortText,
+                    TieBreak = "SORT",
+                        FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & SortText,
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+                )
     )
 VAR MemberCount_EFileName = COUNTROWS ( MemberTable_EFileName )
 VAR KeyCount_EFileName =
@@ -328,12 +375,18 @@ VAR CurSortKey =
 // expression in the candidate blocks -- one is evaluated per row of the member
 // table, this one in the current filter context, and RANKX compares them
 // directly. Change one, change all of them.
+VAR CurSortKeyText =
+    IF (
+        SortKeyIsNumeric,
+        FORMAT ( CurSortKey, SortKeyFormat ),
+        CurSortKey & ""
+    )
 VAR CurRankKey =
     SWITCH (
         TRUE (),
-        GradientBasis = "SORT", CurSortKey & "",
+        GradientBasis = "SORT", CurSortKeyText,
         TieBreak = "SORT",
-            FORMAT ( CurMeasureValue + KeyOffset, KeyFormat ) & "|" & CurSortKey,
+            FORMAT ( CurMeasureValue + KeyOffset, KeyFormat ) & "|" & CurSortKeyText,
         FORMAT ( CurMeasureValue + KeyOffset, KeyFormat )
     )
 

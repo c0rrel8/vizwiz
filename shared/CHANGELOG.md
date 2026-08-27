@@ -1,5 +1,33 @@
 # Changelog — Shared gradient measures
 
+## 0.2.2 — 2026-08-27
+
+**Found live: a numeric sort column was silently scrambling the rank order.**
+The packed tie-break key introduced in `0.2.0` is text, so an unpadded number
+sorts `"10"` before `"2"`. A 20-member test set with a numeric sort column and
+a flat measure came out ordered `1, 10, 11 … 19, 2, 20, 3 … 9`. Reconstructing
+the ranks from the rendered fill colors matched a text sort of unpadded
+`1..20` exactly.
+
+`0.2.0` documented that a numeric sort column needs padding, but left it as a
+hand edit in two places inside each candidate block — easy to miss, and
+nothing detects it when missed. It is now a single flag, `SortKeyIsNumeric`,
+applied in the engine for both the tie-break and the `"SORT"` basis.
+`SortKeyTemp` stays in its native type. Default `FALSE` in the template (its
+shipped sort key is the dimension column, and all four candidates are text),
+`TRUE` in `example-colortest.dax` (whose `[Sort]` is numeric).
+
+Note the asymmetry: a *text* sort column must NOT be padded — the padding is
+compared first and destroys alphabetical order. There is no type-agnostic
+expression that is correct for both, which is why this is a flag rather than
+something automatic.
+
+Also: the example now blanks on a table/matrix TOTAL row via `HASONEVALUE`.
+Without it the total inherited whichever member `MAX` landed on and rendered a
+meaningless color swatch. Deneb has no total row, so this only matters when
+eyeballing the measure in a table — which is exactly how the sort bug was
+found.
+
 ## 0.2.1 — 2026-08-27
 
 Adds `example-colortest.dax` — the single-dimension form of

@@ -2,8 +2,7 @@ Gradient Position =
 // ============================================================================
 // WORKED EXAMPLE -- the single-dimension form of gradientposition.dax, with
 // no field parameter. Kept in the repo so it stays in sync with the template
-// whenever the engine changes; retarget it by editing the three names in
-// CONFIG B and nothing else.
+// whenever the engine changes; retarget it by editing the names in CONFIG B.
 //
 //   Dimension = 'Colortest'[Pos]      (the set of distinct values to color)
 //   Sort col  = 'Colortest'[Sort]     (tie-break, and the "SORT" basis order)
@@ -30,28 +29,48 @@ VAR SortDirection = "ASC"     // "ASC" | "DESC"
 VAR OutputScale = "UNIT"      // "UNIT" (0..1, for the color measures) | "RANK" (1..N)
 VAR LogOffset = 1             // keeps LOG(0) from erroring when ValueScale = "LOG"
 
-// Tie-break key packing. See gradientposition.dax's "HOW TIES ARE BROKEN"
-// for the full writeup. Three constraints:
+// --- SORT KEY TYPE -- get this wrong and the order is silently scrambled ---
+// The sort key is packed into a TEXT ranking key (see "HOW TIES ARE BROKEN"
+// below), and text puts "10" before "2". A NUMERIC sort column therefore has
+// to be zero-padded first; a TEXT one must NOT be (padding a text value
+// destroys its alphabetical order, since the padding is compared first).
+//   TRUE  = 'Colortest'[Sort] holds numbers  -> zero-pad to SortKeyDigits
+//   FALSE = 'Colortest'[Sort] holds text     -> use as-is
+// SortKeyDigits must exceed the digit count of the largest sort value. If the
+// sort column can go negative, add an offset to it in CONFIG B -- text sorts
+// "-5" above "-20" for the same reason KeyOffset exists.
+VAR SortKeyIsNumeric = TRUE
+VAR SortKeyDigits = 12
+VAR SortKeyFormat = REPT ( "0", SortKeyDigits )
+
+// --- TIE-BREAK KEY PACKING ---
+// Breaking a tie needs a strict total order over (measure value, sort key).
+// The obvious way -- "count how many rows beat me" -- is O(N^2) and is what
+// HANDOFF.md open item 1 blames for the high-cardinality crash. So both parts
+// are packed into ONE sortable text key and ranked in a single RANKX pass.
+// Zero-padding is what makes the text comparison agree with the numeric one
+// ("0000000005.000" < "0000000020.000", where unpadded "5" > "20").
 //   1. KeyIntDigits must exceed the digit count of the largest [Stepvalue].
 //      At width 2, 90 packs to "90.000" and 300 to "300.000" -- and "3" < "9"
 //      puts 300 before 90. Silent when it happens.
 //   2. If [Stepvalue] can go negative, set KeyOffset to at least the absolute
-//      value of the most negative it can reach -- text sorts "-5" above "-20".
-//   3. If 'Colortest'[Sort] is NUMERIC, zero-pad it in SortKeyTemp and
-//      CurSortKey below -- FORMAT ( 'Colortest'[Sort], "000000" ) -- or "10"
-//      sorts before "9". Padding is correct for the "SORT" basis too.
+//      value of the most negative it can reach.
+//   3. Values are compared at KeyDecimals precision, so anything closer than
+//      that counts as a tie. Usually a feature -- float noise stops inventing
+//      orderings -- but raise it for a measure whose real differences live
+//      further right of the decimal point.
 VAR KeyOffset = 0
 VAR KeyIntDigits = 12
 VAR KeyDecimals = 3
 VAR KeyFormat = REPT ( "0", KeyIntDigits ) & "." & REPT ( "0", KeyDecimals )
 
 // ---------------------------------------------------------------------------
-// CONFIG B -- dimension wiring. The only three names to change.
+// CONFIG B -- dimension wiring. The only names to change.
 // ---------------------------------------------------------------------------
 
 // This member's own values, in the current filter context.
 VAR CurMeasureValue = CALCULATE ( [Stepvalue] )
-VAR CurSortKey = MAX ( 'Colortest'[Sort] )
+VAR CurSortKeyRaw = MAX ( 'Colortest'[Sort] )
 
 // One row per distinct [Pos], carrying both ranking inputs.
 // ALLSELECTED = the gradient rescales as slicers narrow the data; change it
@@ -59,7 +78,8 @@ VAR CurSortKey = MAX ( 'Colortest'[Sort] )
 // NOTE the CALCULATE around MAX('Colortest'[Sort]): ALLSELECTED('Colortest'[Pos])
 // is a ONE-COLUMN table, so [Sort] is not in row context and cannot be
 // referenced bare. CALCULATE forces the context transition -- filter to this
-// row's [Pos], then take its [Sort].
+// row's [Pos], then take its [Sort]. Keep this expression and CurSortKeyRaw
+// above naming the same column.
 VAR MemberBase =
     ADDCOLUMNS (
         ALLSELECTED ( 'Colortest'[Pos] ),
@@ -71,39 +91,49 @@ VAR MemberBase =
 // ENGINE -- generic. No edits needed to retarget this measure.
 // ---------------------------------------------------------------------------
 
-// Value and sort key packed into ONE sortable text key, so a single RANKX
-// pass produces a strict total order. RANKX ranks one expression and has no
-// secondary tie-break; the alternative -- "count how many rows beat me" -- is
-// the O(N^2) pattern that HANDOFF.md open item 1 blames for the
-// high-cardinality crash. Zero-padding is what makes the text comparison
-// agree with the numeric one ("0000000005.000" < "0000000020.000", where
-// unpadded "5" > "20").
-// A separate ADDCOLUMNS because a column added in an ADDCOLUMNS cannot be
-// referenced by a sibling column in the same one -- and doing it this way
-// evaluates [Stepvalue] once per member, not twice.
+// The sort key as ORDER-SAFE TEXT -- padded if numeric, untouched if not.
+// Applied here rather than in MemberBase so SortKeyTemp stays in its native
+// type, and applied to BOTH the "SORT" basis and the tie-break so a numeric
+// sort column orders correctly in either.
+// A separate ADDCOLUMNS from MemberBase because a column added in an
+// ADDCOLUMNS cannot be referenced by a sibling column in the same one -- and
+// doing it this way evaluates [Stepvalue] once per member, not twice.
 // NAMED MemberTable, NOT Members -- Members is reserved (confirmed live).
 VAR MemberTable =
     ADDCOLUMNS (
         MemberBase,
         "RankKeyTemp",
-            SWITCH (
-                TRUE (),
-                GradientBasis = "SORT", [SortKeyTemp] & "",
-                TieBreak = "SORT",
-                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
-                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
-            )
+            VAR SortText =
+                IF (
+                    SortKeyIsNumeric,
+                    FORMAT ( [SortKeyTemp], SortKeyFormat ),
+                    [SortKeyTemp] & ""
+                )
+            RETURN
+                SWITCH (
+                    TRUE (),
+                    GradientBasis = "SORT", SortText,
+                    TieBreak = "SORT",
+                        FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & SortText,
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+                )
     )
 
 // The current member's key. MUST stay identical to the RankKeyTemp expression
 // above -- one is evaluated per row, this one in the current filter context,
 // and RANKX compares them directly. Change one, change both.
+VAR CurSortKeyText =
+    IF (
+        SortKeyIsNumeric,
+        FORMAT ( CurSortKeyRaw, SortKeyFormat ),
+        CurSortKeyRaw & ""
+    )
 VAR CurRankKey =
     SWITCH (
         TRUE (),
-        GradientBasis = "SORT", CurSortKey & "",
+        GradientBasis = "SORT", CurSortKeyText,
         TieBreak = "SORT",
-            FORMAT ( CurMeasureValue + KeyOffset, KeyFormat ) & "|" & CurSortKey,
+            FORMAT ( CurMeasureValue + KeyOffset, KeyFormat ) & "|" & CurSortKeyText,
         FORMAT ( CurMeasureValue + KeyOffset, KeyFormat )
     )
 
@@ -159,9 +189,14 @@ VAR RankOut = IF ( SortDirection = "DESC", KeyCount + 1 - RankAsc, RankAsc )
 RETURN
     // BLANK in, BLANK out: a member with no measure value gets no position,
     // and the fill measure turns that into its fallback color rather than a
-    // misleading mid-gradient shade.
+    // misleading mid-gradient shade. HASONEVALUE also blanks the TOTAL row of
+    // a table/matrix visual -- without it the total inherits whichever member
+    // MAX happens to land on and shows a meaningless color swatch. Deneb has
+    // no total row, so this only matters when eyeballing the measure in a
+    // table; drop it if a total-row color is actually wanted.
     IF (
-        ISBLANK ( CurMeasureValue ) && GradientBasis = "MEASURE",
+        NOT HASONEVALUE ( 'Colortest'[Pos] )
+            || ( ISBLANK ( CurMeasureValue ) && GradientBasis = "MEASURE" ),
         BLANK (),
         IF (
             OutputScale = "RANK",
