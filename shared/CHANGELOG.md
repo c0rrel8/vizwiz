@@ -1,5 +1,13 @@
 # Changelog — Shared gradient measures
 
+## 0.2.1 — 2026-08-27
+
+Adds `example-colortest.dax` — the single-dimension form of
+`gradientposition.dax`, with no field parameter. It had been handed over in
+conversation twice and drifted out of date both times; keeping it in the repo
+means it gets updated with the engine. Also the smallest thing to test the
+measure against, which matters while `RANKX`-on-text is still unverified.
+
 ## 0.2.0 — 2026-08-27
 
 **Ties on the measure value no longer share a color, and no longer break the

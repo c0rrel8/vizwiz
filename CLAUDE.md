@@ -51,7 +51,11 @@ delivering a new visual.
 - **Font size in points**, converted to px via `* 4 / 3`.
 - **DAX files**: first line must be the `Name =` assignment (comments
   after, never before). Use MAX, not SELECTEDVALUE. Don't name a VAR
-  after a DAX function.
+  after a DAX function. Reserved VAR names found live: `Rank`, `Members`.
+- **Delivering a DAX change**: output the COMPLETE measure as one code
+  block, never a diff or a "change these lines" summary — measures get
+  pasted whole into the Power BI DAX editor, so a partial answer isn't
+  usable.
 
 ## Design system values (dark canvas)
 

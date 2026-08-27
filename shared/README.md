@@ -12,19 +12,27 @@ of the same idea with the endpoints, scale and direction baked into the body.
 Those files stay where they are — nothing in the live report changes until
 someone re-points a visual at these.
 
-## The three files
+## The four files
 
 | File | Returns | Bind to |
 |---|---|---|
 | `gradientposition.dax` | Number, `0`–`1` (or `1`–`N` rank) | Nothing, usually — it feeds the other two. Bind it directly only for native Power BI conditional formatting |
 | `gradientfillcolor.dax` | `"#RRGGBB"` | `ColorOverride` / `ColorOverrideFill` role |
 | `gradientlabelcolor.dax` | `"#RRGGBB"` | `LabelColorOverride` role |
+| `example-colortest.dax` | Number, `0`–`1` | Nothing — a worked example, see below |
 
 Paste them in that order — each one references the one before it.
 
 Only `gradientposition.dax` knows about the dimension and its field
 parameter. The two color measures are thin wrappers, so the expensive,
 repetitive field-parameter enumeration exists once instead of once per color.
+
+`example-colortest.dax` is `gradientposition.dax` with no field parameter:
+one dimension, one sort column, one measure, so every `SWITCH` and all four
+candidate blocks collapse to a single member table and a single rank. Same
+knobs, same engine, same semantics — it is kept in the repo (and updated
+whenever the engine changes) as the reference for a plain single-column
+dimension, and as the smallest thing to test the measure against.
 
 ## Rank or color code?
 
