@@ -239,17 +239,20 @@ and the obvious move is to drop it.
   shorthand, alpha, and unparseable input), RGB interpolation, WCAG relative
   luminance and contrast ratio, and the two-segment mid-stop math — was
   reproduced outside DAX and produces the table above.
-- **NOT verified:** anything requiring a live model. No Power BI, no local
-  DAX engine in this repo.
+- **CONFIRMED LIVE** in Power BI, against a 20-member test table with a flat
+  measure (every member tied, so the tie-break carried the whole ordering) and
+  a `#4555D6` → `#00D0DB` ramp:
+  - **`RANKX` ranks a text expression.** This was the load-bearing unknown —
+    since `0.2.0` the packed key is text in every mode, so a `RANKX` that
+    refused text would have made the measure wrong everywhere. It ranks text
+    fine. It was ranking correctly even while the output looked broken; the
+    order it produced was exactly the order the unpadded text specified.
+  - **`UNION(ROW(...))` accepts `VAR` references as values.** Both color
+    measures build their palette that way and both returned correct hex.
+  - The full chain renders: position → fill → label, evenly stepped across all
+    20 members, both endpoint colors reached.
 
-  **The load-bearing one: `RANKX` must rank a text expression
-  alphabetically.** Since `0.2.0` the packed key is text in every mode, so
-  this is no longer a `"SORT"`-basis-only risk — if `RANKX` will not rank
-  text, the measure is wrong everywhere. Test it first, on a throwaway table
-  with a handful of rows, before wiring it into a visual. If it does not hold,
-  the fallback is a purely numeric composite key, which works only when the
-  sort column is numeric.
-
-  Also unconfirmed: that `UNION(ROW(...))` accepts `VAR` references as values
-  in this engine version, and the `RANKX` performance claim above. Per
-  `CLAUDE.md`, none of this is "confirmed" until it runs in the report.
+- **NOT verified:** the `RANKX` performance claim — 20 members proves nothing
+  about the high-cardinality crash in `HANDOFF.md` open item 1. That needs the
+  real report's cardinality. Per `CLAUDE.md`, it stays unconfirmed until it
+  runs there.

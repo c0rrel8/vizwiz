@@ -1,6 +1,6 @@
 {
   "name": "powerbi-deneb-visuals",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "private": true,
   "description": "A library of Deneb (Vega/Vega-Lite) custom visuals for Power BI.",
   "scripts": {

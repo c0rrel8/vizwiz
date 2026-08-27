@@ -1,5 +1,19 @@
 # Changelog — Shared gradient measures
 
+## 0.2.3 — 2026-08-27
+
+Docs only. **Confirmed live in Power BI** against a 20-member test table with
+a flat measure and a `#4555D6` → `#00D0DB` ramp: even steps across all 20
+members, both endpoints reached, position → fill → label chain working.
+
+That retires two of the three unverified assumptions. `RANKX` ranks a text
+expression — the load-bearing one, since the packed key has been text in every
+mode since `0.2.0`. And `UNION(ROW(...))` accepts `VAR` references as values,
+which both color measures depend on.
+
+Still unproven: the `RANKX` performance claim. Twenty members says nothing
+about the high-cardinality crash in `HANDOFF.md` open item 1.
+
 ## 0.2.2 — 2026-08-27
 
 **Found live: a numeric sort column was silently scrambling the rank order.**

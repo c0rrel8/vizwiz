@@ -16,7 +16,7 @@ All work is on `main`. No sync blockers — GitHub push works.
 | `sunburst/` | Raw Vega | Confirmed live | Concentric arc rings, 3-level hierarchy |
 | `dendrogram/` | Raw Vega | Confirmed live | Tree diagram, 3-level hierarchy |
 | `network/` | Raw Vega | **Dead end** | Force transform incompatible with Deneb — see `network/NATIVE_HANDOFF.md` |
-| `shared/` | DAX only | **Unverified live** | Parameterized gradient measures (position → fill → label) — see `shared/README.md` |
+| `shared/` | DAX only | Confirmed live (20 members) | Parameterized gradient measures (position → fill → label) — see `shared/README.md`. Perf at real cardinality still unproven |
 
 ### Network diagram — key finding
 
