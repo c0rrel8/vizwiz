@@ -84,6 +84,17 @@ To make the gradient **absolute** (fixed against the whole model, not
 rescaled as slicers narrow the data), change `ALLSELECTED` to `ALL` in every
 candidate block.
 
+**Sorting by a column other than the dimension** — wrap the per-row sort key
+in `CALCULATE`, in every candidate block:
+
+```dax
+"SortKeyTemp", CALCULATE ( MAX ( 'Table'[OrderCol] ) )
+```
+
+`ALLSELECTED(col)` is a one-column table, so any other column is not in row
+context and cannot be referenced bare. The shipped default needs no
+`CALCULATE` only because it names the column that is already in the table.
+
 ### `gradientfillcolor.dax`
 
 | Knob | Meaning |

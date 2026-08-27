@@ -1,5 +1,14 @@
 # Changelog — Shared gradient measures
 
+## 0.1.1 — 2026-08-27
+
+Docs only. Documented that a sort key pointing at a column other than the
+dimension must be wrapped in `CALCULATE` — `ALLSELECTED(col)` is a one-column
+table, so any other column is not in row context and cannot be referenced
+bare. The shipped default sorts by the dimension column itself, which is why
+it needs no `CALCULATE`; anyone repointing it at an explicit order column
+would have hit this.
+
 ## 0.1.0 — 2026-08-26
 
 Initial release of the parameterized gradient measure trio

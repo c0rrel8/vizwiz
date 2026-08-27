@@ -135,6 +135,14 @@ VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
 //               the SortKeyTemp column and SortKey_X at an explicit order
 //               column instead if you have one -- they must be the same
 //               column, one evaluated per row, one in the current context.
+//               IF THE SORT COLUMN IS NOT THE DIMENSION COLUMN, the
+//               SortKeyTemp expression must be wrapped in CALCULATE:
+//                   "SortKeyTemp", CALCULATE ( MAX ( 'Table'[OrderCol] ) )
+//               ALLSELECTED(col) is a ONE-COLUMN table, so any other column is
+//               not in row context and cannot be referenced bare; CALCULATE
+//               forces the context transition. The default below needs no
+//               CALCULATE only because it names the column already in the
+//               table.
 // RankM_X     : rank 1..N by measure value, ascending (1 = smallest).
 // RankS_X     : rank 1..N by sort key, ascending (1 = first).
 //
