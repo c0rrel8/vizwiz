@@ -1,5 +1,34 @@
 # Changelog — Shared gradient measures
 
+## 0.2.0 — 2026-08-27
+
+**Ties on the measure value no longer share a color, and no longer break the
+ramp.** New `TieBreak` config (`"SORT"` default, `"NONE"` for the old
+behavior).
+
+The reason ties shared a color in `0.1.x` was that `RANKX` ranks one
+expression and has no secondary tie-break — the thing the O(N²)
+`COUNTROWS(FILTER(...))` pattern was really buying. The fix keeps the single
+pass and folds the tie-break into the ranked expression: value and sort key
+are packed into one zero-padded sortable text key, ranked once. Three
+constraints come with that (padding width, negative values, numeric sort
+columns needing their own padding) — all three are documented in the measure
+and in the README, and the text ordering was verified outside DAX.
+
+**Also fixes a real defect in `0.1.x`:** `SKIP` ranks divided by member count
+meant a tie *at the maximum* silently compressed the ramp — 5/10/20/20 topped
+out at position 0.67 and `HexEnd` was never used. Ranking is now `DENSE` and
+the spacing divides by the distinct *key* count, so the last rank always lands
+on 1.0 in both tie modes.
+
+Raises the risk on the one unverified assumption: the packed key is text in
+every mode, so `RANKX` ranking text is now load-bearing everywhere, not just
+for `"SORT"` basis. Test it on a throwaway table before wiring it up — see the
+README's "Verification status".
+
+Structural: one ranking key replaces the separate measure-rank and sort-rank
+variables, so the engine collapses from two rank `SWITCH`es to one.
+
 ## 0.1.2 — 2026-08-27
 
 `Members_X` renamed to `MemberTable_X`. **Confirmed live by the report

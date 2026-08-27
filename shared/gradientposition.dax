@@ -47,6 +47,18 @@ VAR GradientBasis = "MEASURE"
 //             gets a color 4% of the way along the gradient.
 VAR Spacing = "EQUAL"
 
+// What happens when two members have the SAME measure value.
+//   "SORT" = break the tie with the sort column, giving a strict total order:
+//            every member gets its own distinct color, and ranks always run
+//            1..N with no gaps. See "HOW TIES ARE BROKEN" below for the
+//            mechanism and its two real constraints (KeyIntDigits/KeyOffset).
+//   "NONE" = tied members share a rank and therefore share a color. Ranks run
+//            1..(distinct value count), so both ends of the ramp are still
+//            used even when the tie is at the top.
+// Only affects GradientBasis = "MEASURE" with Spacing = "EQUAL". Magnitude
+// spacing has no ties to break, and "SORT" basis is already a total order.
+VAR TieBreak = "SORT"
+
 // Only used when Spacing = "VALUE".
 //   "LINEAR" = straight min..max interpolation.
 //   "LOG"    = log-scaled, for right-skewed measures where a few large
@@ -76,6 +88,41 @@ VAR OutputScale = "UNIT"
 VAR LogOffset = 1
 
 // ---------------------------------------------------------------------------
+// HOW TIES ARE BROKEN -- read before changing KeyIntDigits/KeyDecimals/KeyOffset
+// ---------------------------------------------------------------------------
+// Breaking a tie needs a strict total order over (measure value, sort key).
+// The obvious way to get one -- "count how many rows beat me", as the older
+// per-visual measures do -- is O(N^2) and is what HANDOFF.md open item 1
+// blames for the high-cardinality crash. So instead both parts are packed
+// into ONE sortable text key and ranked in a single RANKX pass:
+//
+//     FORMAT ( value, "000000000000.000" ) & "|" & sortkey
+//
+// Zero-padding to a fixed width is what makes the text comparison agree with
+// the numeric one ("0000000005.000" < "0000000020.000", where the unpadded
+// "5" > "20"). Three consequences you have to respect:
+//
+//   1. KeyIntDigits MUST exceed the digit count of your largest possible
+//      measure value. Overflow past the padding width silently mis-orders.
+//   2. Negative values sort backwards among themselves ("-5" > "-20" as text).
+//      If the measure can go negative, set KeyOffset to at least the absolute
+//      value of the most negative it can reach, so every key is >= 0.
+//   3. Values are compared at KeyDecimals precision -- anything closer than
+//      that counts as a tie. That is usually a feature (float noise stops
+//      inventing orderings) but raise it for a measure whose real differences
+//      live further right of the decimal point.
+//
+// AND: if your SORT COLUMN IS NUMERIC, zero-pad it too, in the SortKeyTemp
+// expression in each candidate block -- FORMAT ( 'T'[Ord], "000000" ) -- for
+// exactly the reason in 1. above. Concatenating a raw number puts "10" before
+// "9". Padding is safe for the "SORT" basis as well, so there is no reason
+// not to.
+VAR KeyOffset = 0
+VAR KeyIntDigits = 12
+VAR KeyDecimals = 3
+VAR KeyFormat = REPT ( "0", KeyIntDigits ) & "." & REPT ( "0", KeyDecimals )
+
+// ---------------------------------------------------------------------------
 // CONFIG B -- dimension wiring. One block per field-parameter candidate.
 // ---------------------------------------------------------------------------
 //
@@ -94,10 +141,10 @@ VAR LogOffset = 1
 //        'MappedParameterThree'[Category3]  -- Level 3  (column name NOT confirmed live)
 //   2. Search/replace [Data Recieved GB] with your own gradient measure
 //      (5 occurrences: 1 hoisted below + 1 per candidate block).
-//   3. Add/remove a whole candidate block, plus its matching line in each of
-//      the four SWITCHes in the ENGINE section, for every candidate
-//      added/removed from the field parameter itself. Keep this list in sync
-//      with the field parameter's own .dax file.
+//   3. Add/remove a whole candidate block, plus its matching line in each
+//      SWITCH in the ENGINE section, for every candidate added/removed from
+//      the field parameter itself. Keep this list in sync with the field
+//      parameter's own .dax file.
 //
 // NOT USING A FIELD PARAMETER? Set UseFieldParameter = FALSE, put the one
 // column's name in FixedCandidate, and delete the candidate blocks you don't
@@ -119,121 +166,209 @@ VAR SelectedField =
 VAR CurMeasureValue = CALCULATE ( [Data Recieved GB] )
 
 // --- Candidate block template -------------------------------------------
-// Copy a block, then search/replace the column name in all 6 places.
-// NAMED MemberTable_X, NOT Members_X -- a bare "VAR Members =" is rejected;
-// the word is reserved (confirmed live by the report author). Same class of
-// finding as the bare "VAR Rank =" collision documented in
-// waffle/categorycolorgradientrank.dax. The suffixed form is what is used
-// below either way, but do not shorten it to a bare Members when collapsing
-// this measure down to a single dimension.
-// MemberTable_X   : one row per distinct member of this column, in the CURRENT
+// Copy a block, then search/replace the column name in all 5 places.
+// MemberBase_X  : one row per distinct member of this column, in the CURRENT
 //               filter context (ALLSELECTED = the gradient rescales as
 //               slicers narrow the data). To make the gradient absolute --
 //               fixed against the whole model regardless of slicers -- change
 //               ALLSELECTED to ALL in every candidate block.
-// Count_X     : total distinct member count = the "N" of the 1..N rank.
-// MinV_X/MaxV_X : that column's lowest/highest measure value, for magnitude
-//               spacing. Computed here, as scalars, rather than as MINX/MAXX
-//               inside a SWITCH branch further down -- SWITCH is only reliable
-//               when every branch is an already-computed scalar.
-// SortKey_X   : this member's own value of the sort column. Defaults to the
-//               dimension itself (so "SORT" basis = alphabetical). Point both
-//               the SortKeyTemp column and SortKey_X at an explicit order
-//               column instead if you have one -- they must be the same
-//               column, one evaluated per row, one in the current context.
-//               IF THE SORT COLUMN IS NOT THE DIMENSION COLUMN, the
-//               SortKeyTemp expression must be wrapped in CALCULATE:
-//                   "SortKeyTemp", CALCULATE ( MAX ( 'Table'[OrderCol] ) )
+//               If the SORT COLUMN IS NOT THE DIMENSION COLUMN, SortKeyTemp
+//               must be wrapped in CALCULATE:
+//                   "SortKeyTemp", CALCULATE ( MAX ( 'T'[OrderCol] ) )
 //               ALLSELECTED(col) is a ONE-COLUMN table, so any other column is
 //               not in row context and cannot be referenced bare; CALCULATE
 //               forces the context transition. The default below needs no
 //               CALCULATE only because it names the column already in the
-//               table.
-// RankM_X     : rank 1..N by measure value, ascending (1 = smallest).
-// RankS_X     : rank 1..N by sort key, ascending (1 = first).
-//
-// RANKX, not the COUNTROWS(FILTER(...)) "count how many rows beat me" pattern
-// used by the older per-visual gradient measures -- that pattern is O(N^2)
-// and is the known cause of the high-cardinality crash logged as open item 1
-// in HANDOFF.md. RANKX does one pass. Consequence: ties now share a rank (and
-// therefore share a color) instead of being broken alphabetically, which is
-// the more defensible behavior for a value-driven gradient anyway. SKIP
-// leaves gaps after a tie (1,1,3) so the rank still spans 1..N.
+//               table. If that order column is numeric, zero-pad it -- see
+//               "HOW TIES ARE BROKEN" above.
+// MemberTable_X : MemberBase_X plus the packed ranking key. A separate
+//               ADDCOLUMNS because a column added in an ADDCOLUMNS cannot be
+//               referenced by a sibling column in the same one -- and doing it
+//               this way evaluates the measure once per member, not twice.
+//               The RankKeyTemp expression is identical in every candidate
+//               block (it names no real columns), so copy it verbatim.
+//               NAMED MemberTable_X, NOT Members_X -- a bare "VAR Members ="
+//               is rejected; the word is reserved (confirmed live by the
+//               report author). Same class of finding as the bare
+//               "VAR Rank =" collision documented in
+//               waffle/categorycolorgradientrank.dax. Do not shorten it to a
+//               bare Members when collapsing this measure to one dimension.
+// MemberCount_X : distinct member count of the dimension itself.
+// KeyCount_X  : distinct RANKING KEY count -- equal to MemberCount_X when
+//               TieBreak = "SORT" (every key unique), and equal to the
+//               distinct measure-value count when TieBreak = "NONE". This,
+//               not MemberCount_X, is what the even spacing divides by, which
+//               is what keeps both ends of the ramp in use when tied members
+//               share a rank.
+// MinV_X/MaxV_X : that column's lowest/highest measure value, for magnitude
+//               spacing. Computed here, as scalars, rather than as MINX/MAXX
+//               inside a SWITCH branch further down -- SWITCH is only reliable
+//               when every branch is an already-computed scalar.
+// SortKey_X   : this member's own value of the sort column, in the current
+//               context. Must name the same column as SortKeyTemp above.
 // -------------------------------------------------------------------------
 
-VAR MemberTable_EngagementCodeList =
+VAR MemberBase_EngagementCodeList =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[EngagementCodeList] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[EngagementCodeList]
     )
-VAR Count_EngagementCodeList = COUNTROWS ( MemberTable_EngagementCodeList )
+VAR MemberTable_EngagementCodeList =
+    ADDCOLUMNS (
+        MemberBase_EngagementCodeList,
+        "RankKeyTemp",
+            SWITCH (
+                TRUE (),
+                GradientBasis = "SORT", [SortKeyTemp] & "",
+                TieBreak = "SORT",
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
+                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+            )
+    )
+VAR MemberCount_EngagementCodeList = COUNTROWS ( MemberTable_EngagementCodeList )
+VAR KeyCount_EngagementCodeList =
+    COUNTROWS ( DISTINCT ( SELECTCOLUMNS ( MemberTable_EngagementCodeList, "K", [RankKeyTemp] ) ) )
 VAR MinV_EngagementCodeList = MINX ( MemberTable_EngagementCodeList, [GradValueTemp] )
 VAR MaxV_EngagementCodeList = MAXX ( MemberTable_EngagementCodeList, [GradValueTemp] )
 VAR SortKey_EngagementCodeList = MAX ( 'Project_snapshot_Fact'[EngagementCodeList] )
-VAR RankM_EngagementCodeList =
-    RANKX ( MemberTable_EngagementCodeList, [GradValueTemp], CurMeasureValue, ASC, SKIP )
-VAR RankS_EngagementCodeList =
-    RANKX ( MemberTable_EngagementCodeList, [SortKeyTemp], SortKey_EngagementCodeList, ASC, SKIP )
 
-VAR MemberTable_AlphaCode =
+VAR MemberBase_AlphaCode =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[AlphaCode] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[AlphaCode]
     )
-VAR Count_AlphaCode = COUNTROWS ( MemberTable_AlphaCode )
+VAR MemberTable_AlphaCode =
+    ADDCOLUMNS (
+        MemberBase_AlphaCode,
+        "RankKeyTemp",
+            SWITCH (
+                TRUE (),
+                GradientBasis = "SORT", [SortKeyTemp] & "",
+                TieBreak = "SORT",
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
+                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+            )
+    )
+VAR MemberCount_AlphaCode = COUNTROWS ( MemberTable_AlphaCode )
+VAR KeyCount_AlphaCode =
+    COUNTROWS ( DISTINCT ( SELECTCOLUMNS ( MemberTable_AlphaCode, "K", [RankKeyTemp] ) ) )
 VAR MinV_AlphaCode = MINX ( MemberTable_AlphaCode, [GradValueTemp] )
 VAR MaxV_AlphaCode = MAXX ( MemberTable_AlphaCode, [GradValueTemp] )
 VAR SortKey_AlphaCode = MAX ( 'Project_snapshot_Fact'[AlphaCode] )
-VAR RankM_AlphaCode =
-    RANKX ( MemberTable_AlphaCode, [GradValueTemp], CurMeasureValue, ASC, SKIP )
-VAR RankS_AlphaCode =
-    RANKX ( MemberTable_AlphaCode, [SortKeyTemp], SortKey_AlphaCode, ASC, SKIP )
 
-VAR MemberTable_CustodianDisplayName =
+VAR MemberBase_CustodianDisplayName =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[CustodianDisplayName] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[CustodianDisplayName]
     )
-VAR Count_CustodianDisplayName = COUNTROWS ( MemberTable_CustodianDisplayName )
+VAR MemberTable_CustodianDisplayName =
+    ADDCOLUMNS (
+        MemberBase_CustodianDisplayName,
+        "RankKeyTemp",
+            SWITCH (
+                TRUE (),
+                GradientBasis = "SORT", [SortKeyTemp] & "",
+                TieBreak = "SORT",
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
+                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+            )
+    )
+VAR MemberCount_CustodianDisplayName = COUNTROWS ( MemberTable_CustodianDisplayName )
+VAR KeyCount_CustodianDisplayName =
+    COUNTROWS ( DISTINCT ( SELECTCOLUMNS ( MemberTable_CustodianDisplayName, "K", [RankKeyTemp] ) ) )
 VAR MinV_CustodianDisplayName = MINX ( MemberTable_CustodianDisplayName, [GradValueTemp] )
 VAR MaxV_CustodianDisplayName = MAXX ( MemberTable_CustodianDisplayName, [GradValueTemp] )
 VAR SortKey_CustodianDisplayName = MAX ( 'Project_snapshot_Fact'[CustodianDisplayName] )
-VAR RankM_CustodianDisplayName =
-    RANKX ( MemberTable_CustodianDisplayName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
-VAR RankS_CustodianDisplayName =
-    RANKX ( MemberTable_CustodianDisplayName, [SortKeyTemp], SortKey_CustodianDisplayName, ASC, SKIP )
 
-VAR MemberTable_EFileName =
+VAR MemberBase_EFileName =
     ADDCOLUMNS (
         ALLSELECTED ( 'Project_snapshot_Fact'[EFileName] ),
         "GradValueTemp", CALCULATE ( [Data Recieved GB] ),
         "SortKeyTemp", 'Project_snapshot_Fact'[EFileName]
     )
-VAR Count_EFileName = COUNTROWS ( MemberTable_EFileName )
+VAR MemberTable_EFileName =
+    ADDCOLUMNS (
+        MemberBase_EFileName,
+        "RankKeyTemp",
+            SWITCH (
+                TRUE (),
+                GradientBasis = "SORT", [SortKeyTemp] & "",
+                TieBreak = "SORT",
+                    FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat ) & "|" & [SortKeyTemp],
+                FORMAT ( [GradValueTemp] + KeyOffset, KeyFormat )
+            )
+    )
+VAR MemberCount_EFileName = COUNTROWS ( MemberTable_EFileName )
+VAR KeyCount_EFileName =
+    COUNTROWS ( DISTINCT ( SELECTCOLUMNS ( MemberTable_EFileName, "K", [RankKeyTemp] ) ) )
 VAR MinV_EFileName = MINX ( MemberTable_EFileName, [GradValueTemp] )
 VAR MaxV_EFileName = MAXX ( MemberTable_EFileName, [GradValueTemp] )
 VAR SortKey_EFileName = MAX ( 'Project_snapshot_Fact'[EFileName] )
-VAR RankM_EFileName =
-    RANKX ( MemberTable_EFileName, [GradValueTemp], CurMeasureValue, ASC, SKIP )
-VAR RankS_EFileName =
-    RANKX ( MemberTable_EFileName, [SortKeyTemp], SortKey_EFileName, ASC, SKIP )
 
 // ---------------------------------------------------------------------------
 // ENGINE -- generic. Only edit to add/remove a candidate's SWITCH line.
 // ---------------------------------------------------------------------------
 
-// Collapse the per-candidate scalars down to the one selected candidate.
+// This member's own sort key, collapsed to the selected candidate. Needed
+// before the ranking key can be built, which is why this SWITCH sits above
+// the rest of them.
+VAR CurSortKey =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", SortKey_EngagementCodeList,
+        "AlphaCode", SortKey_AlphaCode,
+        "CustodianDisplayName", SortKey_CustodianDisplayName,
+        "EFileName", SortKey_EFileName
+    )
+
+// The current member's ranking key. MUST stay identical to the RankKeyTemp
+// expression in the candidate blocks -- one is evaluated per row of the member
+// table, this one in the current filter context, and RANKX compares them
+// directly. Change one, change all of them.
+VAR CurRankKey =
+    SWITCH (
+        TRUE (),
+        GradientBasis = "SORT", CurSortKey & "",
+        TieBreak = "SORT",
+            FORMAT ( CurMeasureValue + KeyOffset, KeyFormat ) & "|" & CurSortKey,
+        FORMAT ( CurMeasureValue + KeyOffset, KeyFormat )
+    )
+
+// One RANKX per candidate, all against the same shared key. DENSE, not SKIP:
+// with TieBreak = "SORT" nothing ties so the two are identical, and with
+// TieBreak = "NONE" DENSE is what keeps the ranks contiguous (1..KeyCount) so
+// the last rank still lands on position 1 and HexEnd actually gets used.
+// SKIP would leave 5/10/20/20 at ranks 1/2/3/3 out of 4 -- topping out at
+// 0.67 and never reaching the end of the ramp.
+VAR Rank_EngagementCodeList =
+    RANKX ( MemberTable_EngagementCodeList, [RankKeyTemp], CurRankKey, ASC, DENSE )
+VAR Rank_AlphaCode =
+    RANKX ( MemberTable_AlphaCode, [RankKeyTemp], CurRankKey, ASC, DENSE )
+VAR Rank_CustodianDisplayName =
+    RANKX ( MemberTable_CustodianDisplayName, [RankKeyTemp], CurRankKey, ASC, DENSE )
+VAR Rank_EFileName =
+    RANKX ( MemberTable_EFileName, [RankKeyTemp], CurRankKey, ASC, DENSE )
+
+// Collapse the remaining per-candidate scalars down to the selected candidate.
 // SWITCH over already-computed scalars only -- never over tables.
 VAR MemberCount =
     SWITCH (
         SelectedField,
-        "EngagementCodeList", Count_EngagementCodeList,
-        "AlphaCode", Count_AlphaCode,
-        "CustodianDisplayName", Count_CustodianDisplayName,
-        "EFileName", Count_EFileName
+        "EngagementCodeList", MemberCount_EngagementCodeList,
+        "AlphaCode", MemberCount_AlphaCode,
+        "CustodianDisplayName", MemberCount_CustodianDisplayName,
+        "EFileName", MemberCount_EFileName
+    )
+VAR KeyCount =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", KeyCount_EngagementCodeList,
+        "AlphaCode", KeyCount_AlphaCode,
+        "CustodianDisplayName", KeyCount_CustodianDisplayName,
+        "EFileName", KeyCount_EFileName
     )
 VAR MinValue =
     SWITCH (
@@ -251,27 +386,18 @@ VAR MaxValue =
         "CustodianDisplayName", MaxV_CustodianDisplayName,
         "EFileName", MaxV_EFileName
     )
-VAR RankByMeasure =
-    SWITCH (
-        SelectedField,
-        "EngagementCodeList", RankM_EngagementCodeList,
-        "AlphaCode", RankM_AlphaCode,
-        "CustodianDisplayName", RankM_CustodianDisplayName,
-        "EFileName", RankM_EFileName
-    )
-VAR RankBySort =
-    SWITCH (
-        SelectedField,
-        "EngagementCodeList", RankS_EngagementCodeList,
-        "AlphaCode", RankS_AlphaCode,
-        "CustodianDisplayName", RankS_CustodianDisplayName,
-        "EFileName", RankS_EFileName
-    )
 
 // Named RankAsc, not Rank -- a bare "VAR Rank =" is a syntax error, because
 // DAX now has a built-in RANK window function that the name collides with
 // (confirmed live, see waffle/categorycolorgradientrank.dax).
-VAR RankAsc = IF ( GradientBasis = "SORT", RankBySort, RankByMeasure )
+VAR RankAsc =
+    SWITCH (
+        SelectedField,
+        "EngagementCodeList", Rank_EngagementCodeList,
+        "AlphaCode", Rank_AlphaCode,
+        "CustodianDisplayName", Rank_CustodianDisplayName,
+        "EFileName", Rank_EFileName
+    )
 
 // Magnitude-spaced position (Spacing = "VALUE").
 VAR ScaledMin = IF ( ValueScale = "LOG", LOG ( MinValue + LogOffset ), MinValue )
@@ -285,12 +411,13 @@ VAR PosByValue =
     )
 
 // Rank-spaced position (Spacing = "EQUAL", and always for GradientBasis =
-// "SORT"). Rank 1 -> 0, rank N -> 1, equal steps in between.
+// "SORT"). Rank 1 -> 0, last rank -> 1, equal steps in between. Divides by
+// KeyCount, not MemberCount -- see the KeyCount_X note in CONFIG B.
 VAR PosByRank =
     IF (
-        MemberCount <= 1,
-        0.5, // single member -- nothing to space against
-        DIVIDE ( RankAsc - 1, MemberCount - 1 )
+        KeyCount <= 1,
+        0.5, // one member, or every member tied -- nothing to space against
+        DIVIDE ( RankAsc - 1, KeyCount - 1 )
     )
 
 VAR PosAsc =
@@ -304,15 +431,21 @@ VAR PosAsc =
 VAR PosDirected = IF ( SortDirection = "DESC", 1 - PosAsc, PosAsc )
 VAR PositionOut = MIN ( 1, MAX ( 0, PosDirected ) )
 
-// 1..N rank, direction applied, for OutputScale = "RANK".
-VAR RankOut = IF ( SortDirection = "DESC", MemberCount + 1 - RankAsc, RankAsc )
+// Rank, direction applied, for OutputScale = "RANK".
+VAR RankOut = IF ( SortDirection = "DESC", KeyCount + 1 - RankAsc, RankAsc )
 
 RETURN
-    // BLANK in, BLANK out: a member with no measure value gets no rank and no
-    // position, and the fill measure turns that into its fallback color
-    // rather than a misleading mid-gradient shade.
+    // BLANK in, BLANK out: a member with no measure value gets no position,
+    // and the fill measure turns that into its fallback color rather than a
+    // misleading mid-gradient shade. MemberCount is referenced here so the
+    // variable is not dead code -- it is the honest "distinct members of the
+    // dimension" count, which KeyCount only equals when TieBreak = "SORT".
     IF (
-        ISBLANK ( RankAsc ) && ISBLANK ( CurMeasureValue ),
+        ISBLANK ( CurMeasureValue ) && GradientBasis = "MEASURE",
         BLANK (),
-        IF ( OutputScale = "RANK", RankOut, PositionOut )
+        IF (
+            OutputScale = "RANK",
+            RankOut,
+            IF ( MemberCount = 0, BLANK (), PositionOut )
+        )
     )

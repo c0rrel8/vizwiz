@@ -74,10 +74,14 @@ The field parameters and their label columns:
 |---|---|---|
 | `GradientBasis` | `"MEASURE"` \| `"SORT"` | Order members by a measure, or by a sort column |
 | `Spacing` | `"EQUAL"` \| `"VALUE"` | Even steps per rank, or steps proportional to magnitude. `"SORT"` basis is always even |
+| `TieBreak` | `"SORT"` \| `"NONE"` | Two members with the same measure value: break the tie with the sort column so each gets its own color, or let them share a rank and a color |
 | `ValueScale` | `"LINEAR"` \| `"LOG"` | Only with `Spacing = "VALUE"`. `"LOG"` for right-skewed measures |
 | `SortDirection` | `"ASC"` \| `"DESC"` | Which end of the ramp the first member lands on |
 | `OutputScale` | `"UNIT"` \| `"RANK"` | `0`–`1` for the color measures, `1`–`N` for standalone use |
 | `LogOffset` | number | Added inside `LOG()` to survive zeros; raise it if the measure goes negative |
+| `KeyOffset` | number | Tiebreak key: raise it so every measure value is `>= 0` if the measure can go negative |
+| `KeyIntDigits` | integer | Tiebreak key: zero-padding width. Must exceed the digit count of your largest value |
+| `KeyDecimals` | integer | Tiebreak key: precision at which two values count as tied |
 | `UseFieldParameter` | `TRUE` \| `FALSE` | `FALSE` = one fixed column, named in `FixedCandidate` |
 
 To make the gradient **absolute** (fixed against the whole model, not
@@ -138,19 +142,61 @@ position 0.7, where the better of the two text colors still only reaches
 for body text (4.5:1). Pulling `HexStart` darker or `HexEnd` darker fixes it;
 `"CONTRAST"` mode will follow the change without any threshold retuning.
 
-## Performance
+## Ties, and how they are broken
 
 `gradientposition.dax` ranks with `RANKX`, not the
 `COUNTROWS(FILTER(...))` "count how many rows beat me" pattern used by the
 older measures. That pattern is O(N²) and is the known cause of the
 high-cardinality crash logged as open item 1 in `HANDOFF.md`; `RANKX` does one
-pass. The trade-off is that ties now share a rank — and therefore share a
-color — instead of being broken alphabetically. For a value-driven gradient
-that is the better behavior: two members with identical values should look
-identical.
+pass.
 
-The `SKIP` tie mode leaves gaps after a tie (`1, 1, 3`), so the rank still
-spans `1..N` and the even spacing still lands on `0` and `1` at the ends.
+The catch is that `RANKX` ranks one expression and has no secondary
+tie-break — which is exactly what the O(N²) pattern was buying. So the tie
+break is folded into the ranked expression itself: value and sort key are
+packed into a single sortable text key, zero-padded so the text comparison
+agrees with the numeric one, and that one key is ranked in one pass.
+
+```dax
+FORMAT ( value, "000000000000.000" ) & "|" & sortkey
+```
+
+With `TieBreak = "SORT"` (the default) the key is unique per member, so ranks
+run `1..N` with no ties and every member gets its own color. With
+`TieBreak = "NONE"` the sort key is left off and tied members share a rank and
+a color.
+
+Either way the ranks are **`DENSE`, and the spacing divides by the distinct
+*key* count, not the member count.** That combination is what keeps both ends
+of the ramp in use:
+
+| Values | `TieBreak = "SORT"` | `TieBreak = "NONE"` | `SKIP` + member count |
+|---|---|---|---|
+| 5, 10, 20, 20 | 0, .33, .67, **1.0** | 0, .5, **1.0**, **1.0** | 0, .33, .67, .67 ← `HexEnd` never used |
+| 5, 10, 10, 20 | 0, .33, .67, 1.0 | 0, .5, .5, 1.0 | 0, .33, .33, 1.0 |
+| 7, 7, 7 | 0, .5, 1.0 | .5, .5, .5 | 0, 0, 0 |
+
+The last column is what shipped in `0.1.x` and is a real defect: a tie at the
+maximum silently compressed the ramp so the end color was never reached.
+
+### Three constraints on the packed key
+
+Verified by reproducing the text ordering outside DAX:
+
+1. **`KeyIntDigits` must exceed the digit count of your largest measure
+   value.** At width 2, `90` and `300` pack to `"90.000"` and `"300.000"`, and
+   `"3" < "9"` puts 300 *before* 90. Silent, and the default of 12 is
+   deliberately generous.
+2. **Negatives sort backwards among themselves** — `"-5" > "-20"` as text. If
+   the measure can go negative, set `KeyOffset` to at least the absolute value
+   of the most negative it can reach.
+3. **A numeric sort column must be zero-padded too**, in the `SortKeyTemp`
+   expression: `FORMAT ( 'T'[Ord], "000000" )`. Unpadded, `"10"` sorts before
+   `"9"`. Padding is also correct for the `"SORT"` basis, so there is no
+   reason not to.
+
+Values are compared at `KeyDecimals` precision, so anything closer than that
+counts as a tie. Usually a feature — float noise stops inventing orderings —
+but raise it for a measure whose real differences live further right.
 
 ## Naming gotchas
 
@@ -175,9 +221,16 @@ and the obvious move is to drop it.
   luminance and contrast ratio, and the two-segment mid-stop math — was
   reproduced outside DAX and produces the table above.
 - **NOT verified:** anything requiring a live model. No Power BI, no local
-  DAX engine in this repo. Specifically unconfirmed: that `RANKX` ranks a
-  **text** sort key alphabetically the way `"SORT"` basis assumes (if it
-  misbehaves, point `SortKeyTemp` and `SortKey_X` at a numeric order column
-  instead); that `UNION(ROW(...))` accepts `VAR` references as values in this
-  engine version; and the `RANKX` performance claim above. Per `CLAUDE.md`,
-  none of this is "confirmed" until it runs in the report.
+  DAX engine in this repo.
+
+  **The load-bearing one: `RANKX` must rank a text expression
+  alphabetically.** Since `0.2.0` the packed key is text in every mode, so
+  this is no longer a `"SORT"`-basis-only risk — if `RANKX` will not rank
+  text, the measure is wrong everywhere. Test it first, on a throwaway table
+  with a handful of rows, before wiring it into a visual. If it does not hold,
+  the fallback is a purely numeric composite key, which works only when the
+  sort column is numeric.
+
+  Also unconfirmed: that `UNION(ROW(...))` accepts `VAR` references as values
+  in this engine version, and the `RANKX` performance claim above. Per
+  `CLAUDE.md`, none of this is "confirmed" until it runs in the report.
